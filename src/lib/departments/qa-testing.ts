@@ -78,6 +78,7 @@ export const qaTesting: DepartmentSeed = {
             placeholder: "The conditions that define 'working'…",
             help: "Every test should trace back to one of these.",
             max: 600,
+            clarifyPrompt: "What's the single condition that must hold for this to count as working?",
           },
         ],
       },
@@ -107,6 +108,7 @@ export const qaTesting: DepartmentSeed = {
             slot: "constraint",
             placeholder: "Add a risky area and press Enter",
             help: "Where bugs would hurt most — these get prioritised.",
+            clarifyPrompt: "Where would a bug hurt the most if it slipped through?",
           },
           {
             id: "needsAutomation",
@@ -145,6 +147,7 @@ export const qaTesting: DepartmentSeed = {
             slot: "constraint",
             placeholder: "Data shapes, fixtures, or what must be avoided…",
             max: 500,
+            clarifyPrompt: "Any specific data shapes or fixtures the tests should use — or avoid?",
           },
           {
             id: "referenceExample",

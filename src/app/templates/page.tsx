@@ -27,8 +27,11 @@ export default async function TemplatesPage() {
 
       {templates.length === 0 ? (
         <Card className="mt-8 p-10 text-center text-ink3">
-          No saved templates yet. Generate a prompt, then choose{" "}
-          <span className="text-ink2">Save as template</span>.
+          No saved templates yet.{" "}
+          <Link href="/" className="text-accent hover:underline">
+            Generate a prompt
+          </Link>
+          , then choose <span className="text-ink2">Save as template</span>.
         </Card>
       ) : (
         <div className="mt-6 flex flex-col gap-3">

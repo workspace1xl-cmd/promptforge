@@ -43,8 +43,18 @@ export function ComplianceAdmin() {
   }, []);
 
   React.useEffect(() => {
-    load();
-  }, [load]);
+    let ignore = false;
+    (async () => {
+      const res = await fetch("/api/compliance");
+      const data: Dept[] = await res.json();
+      if (ignore) return;
+      setDepts(data);
+      setSel((s) => s || data[0]?.key || "");
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const dept = depts?.find((d) => d.key === sel);
 

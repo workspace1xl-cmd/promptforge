@@ -44,8 +44,26 @@ to freehand a blank chat box.
 - **Templates library** (`/templates`) — save a filled-in brief and load it back into the
   wizard pre-filled (`/generate/<dept>?template=<id>`).
 
-Later phases (not built yet): a prompt-quality critique/repair pass, clarify-before-generating
-(Flipped Interaction), A/B variants, and integrations/analytics.
+**Phase 2** — the quality & intelligence layer:
+
+- **Quality critique pass** — every generation is scored 0–100 against the Google whitepaper
+  checklist (role, task, context, format, constraints, technique, simplicity, plus an
+  examples bonus). Score and per-criterion notes are shown in the result view and stored on
+  `GeneratedPrompt.qualityScore`.
+- **Auto-repair** — weak required checks get fixed before the artifact reaches the user. With
+  no AI key, a mechanical, non-inventive note is appended for genuine gaps (e.g. missing
+  context). With `CEREBRAS_API_KEY` set, a second Cerebras call re-verifies the checklist
+  against the actual prompt text and rewrites the weak sections without inventing new facts.
+- **Clarify before generating** (Flipped Interaction pattern) — if a brief is thin (few
+  optional fields filled), PromptForge asks up to three targeted follow-up questions before
+  forging, instead of silently guessing. Answers feed straight into the prompt's context.
+  Each department config marks a few fields `clarifyPrompt`-worthy.
+- **A/B variants** — a toggle on the Output step forges two genuinely different takes on one
+  brief (a different technique *and* rigour each, e.g. `zero-shot` vs `chain-of-thought`),
+  versioned against the same submission, so there's a real choice to make.
+
+Later phases (not built yet): integrations (send to a coding agent / ticket system) and
+org-level analytics.
 
 ---
 
@@ -90,14 +108,17 @@ src/
 │   ├── history/page.tsx         # saved generations (versioned)
 │   ├── templates/page.tsx       # templates library
 │   ├── admin/compliance/page.tsx# per-department rule editor
-│   └── api/{generate,templates,compliance}/route.ts
+│   └── api/{generate,generate/variants,clarify,templates,compliance}/route.ts
 ├── components/                  # ui primitives, inputs, wizard, result view, admin
+│   └── wizard/                  # FieldRenderer, LivePreview, ClarifyPanel, VariantPicker, ResultView
 └── lib/
     ├── departments/             # config types + six department configs + registry
-    ├── engine/                  # patterns, assemble (isomorphic), provider (Cerebras + local)
-    ├── validation.ts            # zod request schema + required-field checks
+    ├── engine/                  # patterns, assemble (isomorphic), critique (quality/repair),
+    │                             # clarify (Flipped Interaction), provider (Cerebras + local)
+    ├── server/runGeneration.ts  # shared persist+critique helper for single & A/B generation
+    ├── validation.ts            # zod request schemas + required-field checks
     └── db.ts                    # Prisma client (pg adapter)
-prisma/schema.prisma             # 9 models per the spec
+prisma/schema.prisma             # 9 models per the spec + qualityScore/variantLabel
 prisma/seed.ts                   # org, prompt patterns, department configs, compliance rules
 ```
 

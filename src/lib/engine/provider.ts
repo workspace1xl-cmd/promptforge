@@ -15,6 +15,7 @@ import {
   buildSystemMetaPrompt,
   renderPrompt,
   renderSOP,
+  type MetaModel,
 } from "./assemble";
 
 export interface EngineResult {
@@ -24,6 +25,8 @@ export interface EngineResult {
   patternsUsed: string[];
   provider: string;
   meta: Record<string, unknown>;
+  /** The assembled model — reused by the critique pass so it isn't rebuilt. */
+  model: MetaModel;
 }
 
 async function callCerebras(
@@ -88,6 +91,7 @@ export async function generate(
           patternsUsed: model.patternsUsed,
           provider: `cerebras:${modelName}`,
           meta: { ...baseMeta, systemMetaPrompt: system },
+          model,
         };
       }
     } catch (err) {
@@ -99,6 +103,7 @@ export async function generate(
         patternsUsed: model.patternsUsed,
         provider: "local-engine (provider error)",
         meta: { ...baseMeta, providerError: (err as Error).message },
+        model,
       };
     }
   }
@@ -110,5 +115,6 @@ export async function generate(
     patternsUsed: model.patternsUsed,
     provider: "local-engine",
     meta: baseMeta,
+    model,
   };
 }

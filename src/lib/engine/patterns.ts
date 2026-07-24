@@ -94,6 +94,16 @@ export const PATTERN_MAP: Record<string, PatternDef> = Object.fromEntries(
 
 export type Technique = "zero-shot" | "few-shot" | "chain-of-thought" | "react";
 
+// Which technique variant B reaches for, given variant A's technique — used by
+// the A/B generator so the two artifacts are structurally different, not just
+// differently worded.
+export const ALT_TECHNIQUE: Record<Technique, Technique> = {
+  "zero-shot": "chain-of-thought",
+  "chain-of-thought": "react",
+  react: "chain-of-thought",
+  "few-shot": "chain-of-thought",
+};
+
 export const TECHNIQUE_INSTRUCTIONS: Record<Technique, string> = {
   "zero-shot": "Complete the task directly using the context provided.",
   "few-shot": "Use the worked examples above as the pattern to follow.",

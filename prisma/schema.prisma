@@ -114,6 +114,8 @@ model GeneratedPrompt {
   provider     String // local-engine | cerebras:gpt-oss-120b
   outputFormat String
   prompt       String         @db.Text
+  qualityScore Int? // 0-100, from the Phase 2 critique pass (Google whitepaper checklist)
+  variantLabel String? // "A" | "B" when generated as part of an A/B comparison, else null
   meta         Json?
   createdAt    DateTime       @default(now())
   sop          SOPDocument?

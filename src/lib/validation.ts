@@ -12,6 +12,16 @@ export const generateRequestSchema = z.object({
   refine: z.string().max(2000).optional(),
   answers: z.record(z.string(), z.any()),
   saveTemplateName: z.string().max(80).optional(),
+  clarifications: z
+    .array(z.object({ question: z.string().min(1), answer: z.string().max(800) }))
+    .max(5)
+    .optional(),
+  submissionId: z.string().optional(),
+});
+
+export const clarifyRequestSchema = z.object({
+  departmentKey: z.string().min(1),
+  answers: z.record(z.string(), z.any()),
 });
 
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;

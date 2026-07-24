@@ -109,6 +109,7 @@ export const marketing: DepartmentSeed = {
             type: "chips",
             slot: "task",
             placeholder: "Add a KPI and press Enter",
+            clarifyPrompt: "What number will tell you this campaign worked?",
           },
         ],
       },
@@ -123,6 +124,7 @@ export const marketing: DepartmentSeed = {
             slot: "constraint",
             placeholder: "Voice, claims to avoid, legal lines…",
             max: 400,
+            clarifyPrompt: "Any claims or lines the brand must never cross?",
           },
           {
             id: "competitorPositioning",
@@ -131,6 +133,7 @@ export const marketing: DepartmentSeed = {
             slot: "context",
             placeholder: "How competitors position, and where you differ…",
             max: 400,
+            clarifyPrompt: "Who's the main competitor here, and where do you win against them?",
           },
           {
             id: "referenceExample",

@@ -89,6 +89,9 @@ function selectTechnique(
   options: GenerateOptions,
   hasExamples: boolean,
 ): Technique {
+  // The A/B variant generator forces a deliberately different technique for
+  // variant B — that always wins over the normal selection heuristic.
+  if (options.techniqueOverride) return options.techniqueOverride;
   if (hasExamples) return "few-shot";
   // A department can pin a preferred technique to a given output artifact.
   const def = config.outputFormats.find((o) => o.value === options.outputFormat);
@@ -144,6 +147,12 @@ export function buildModel(
         examples.push(renderValue(v));
         break;
     }
+  }
+
+  // Answers to the pre-generation clarify step read straight into context —
+  // they exist specifically to fill the gaps a thin brief left behind.
+  for (const c of options.clarifications ?? []) {
+    if (c.answer && c.answer.trim()) context.push(`${c.question}: ${c.answer.trim()}`);
   }
 
   const hard = compliance.filter((c) => (c.severity ?? "hard") === "hard");

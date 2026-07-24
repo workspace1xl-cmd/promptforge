@@ -69,6 +69,7 @@ export const graphicsDesign: DepartmentSeed = {
             slot: "task",
             placeholder: "What it's for and what it must communicate…",
             max: 400,
+            clarifyPrompt: "What's the one thing this design must communicate at a glance?",
           },
         ],
       },
@@ -84,6 +85,7 @@ export const graphicsDesign: DepartmentSeed = {
             placeholder: "Colours, fonts, logo rules…",
             help: "The generated brief will treat these as fixed.",
             max: 500,
+            clarifyPrompt: "Any brand colours, fonts or logo rules this must follow?",
           },
           {
             id: "dimensions",
@@ -100,6 +102,7 @@ export const graphicsDesign: DepartmentSeed = {
             slot: "context",
             placeholder: "Styles, artists, or links that capture the feel…",
             max: 400,
+            clarifyPrompt: "Any reference styles, artists or existing work that capture the feel you want?",
           },
         ],
       },

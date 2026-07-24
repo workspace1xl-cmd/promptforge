@@ -6,11 +6,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 function ThemeToggle() {
-  const [dark, setDark] = React.useState<boolean | null>(null);
-
-  React.useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  // Lazy initializer, not an effect: by the time this client component
+  // hydrates, the inline theme-init script in <head> has already set the
+  // class, so reading it here avoids an extra render and a setState-in-effect.
+  const [dark, setDark] = React.useState<boolean | null>(() =>
+    typeof document === "undefined"
+      ? null
+      : document.documentElement.classList.contains("dark"),
+  );
 
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark");

@@ -50,6 +50,12 @@ export interface FieldDef {
   showIf?: ShowIf;
   /** Smart default applied when the form first loads. */
   default?: AnswerValue;
+  /**
+   * Marks this field as worth a follow-up question when left empty and the
+   * brief is otherwise thin (Flipped Interaction pattern). The text is the
+   * plain-English question asked in the pre-generation clarify step.
+   */
+  clarifyPrompt?: string;
 }
 
 export interface WizardStep {
@@ -113,4 +119,12 @@ export interface GenerateOptions {
   verbosity: "concise" | "balanced" | "detailed";
   rigor: "guidance" | "strict";
   refine?: string;
+  /** Answers to the pre-generation clarify step (Flipped Interaction pattern). */
+  clarifications?: { question: string; answer: string }[];
+  /**
+   * Forces a specific technique instead of the usual selection heuristic.
+   * Used by the A/B variant generator to make variant B genuinely different
+   * from variant A, not just cosmetically reworded.
+   */
+  techniqueOverride?: "zero-shot" | "few-shot" | "chain-of-thought" | "react";
 }

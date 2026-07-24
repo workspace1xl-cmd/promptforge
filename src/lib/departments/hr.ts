@@ -69,6 +69,7 @@ export const humanResources: DepartmentSeed = {
             slot: "audience",
             placeholder: "e.g. All UK employees",
             max: 160,
+            clarifyPrompt: "Who exactly will read this document?",
           },
         ],
       },
@@ -106,6 +107,7 @@ export const humanResources: DepartmentSeed = {
             placeholder: "e.g. United Kingdom",
             help: "Compliance is checked against this jurisdiction.",
             max: 120,
+            clarifyPrompt: "Which country or region's employment law applies here?",
           },
         ],
       },
@@ -119,6 +121,7 @@ export const humanResources: DepartmentSeed = {
             type: "chips",
             slot: "constraint",
             placeholder: "Add a constraint and press Enter",
+            clarifyPrompt: "Any specific legal or DEI constraints this must respect?",
           },
           {
             id: "approvalChain",

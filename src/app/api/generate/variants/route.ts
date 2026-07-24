@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/db";
 import { runGeneration } from "@/lib/server/runGeneration";
 import { generateRequestSchema, missingRequired } from "@/lib/validation";
+import { buildModel } from "@/lib/engine/assemble";
+import { ALT_TECHNIQUE } from "@/lib/engine/patterns";
 import type { Answers, ComplianceRuleDef, DepartmentConfig, GenerateOptions } from "@/lib/departments/types";
+
+// Generates two genuinely different artifacts from one brief — variant B
+// deliberately uses a different technique (and the opposite rigour) from
+// variant A, rather than just a reworded duplicate — so there's a real choice
+// to make, not a coin flip.
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -48,7 +55,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const options: GenerateOptions = {
+  const optionsA: GenerateOptions = {
     useCase: body.useCase,
     outputFormat: body.outputFormat,
     verbosity: body.verbosity,
@@ -57,14 +64,41 @@ export async function POST(request: Request) {
     clarifications: body.clarifications,
   };
 
-  const result = await runGeneration({
+  // Determine variant A's natural technique, then force variant B onto a
+  // deliberately different one.
+  const naturalTechnique = buildModel(config, answers, compliance, optionsA).technique;
+  const optionsB: GenerateOptions = {
+    ...optionsA,
+    rigor: optionsA.rigor === "strict" ? "guidance" : "strict",
+    techniqueOverride: ALT_TECHNIQUE[naturalTechnique],
+  };
+
+  // Sequential, not parallel: both share one submission, and the version
+  // number is a count-then-insert — running them concurrently would race.
+  const resultA = await runGeneration({
     departmentId: department.id,
     config,
     compliance,
     answers,
-    options,
+    options: optionsA,
     submissionId: body.submissionId,
+    variantLabel: "A",
+  });
+  const resultB = await runGeneration({
+    departmentId: department.id,
+    config,
+    compliance,
+    answers,
+    options: optionsB,
+    submissionId: resultA.submissionId,
+    variantLabel: "B",
   });
 
-  return Response.json(result);
+  return Response.json({
+    submissionId: resultA.submissionId,
+    variants: [
+      { label: "A", ...resultA },
+      { label: "B", ...resultB },
+    ],
+  });
 }

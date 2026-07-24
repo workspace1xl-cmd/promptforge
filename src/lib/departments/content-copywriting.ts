@@ -77,6 +77,7 @@ export const contentCopywriting: DepartmentSeed = {
             placeholder: "e.g. Drive sign-ups for the free trial",
             help: "The one action or outcome the copy should drive.",
             max: 200,
+            clarifyPrompt: "What's the one action you want the reader to take after reading this?",
           },
         ],
       },
@@ -101,6 +102,7 @@ export const contentCopywriting: DepartmentSeed = {
             slot: "context",
             placeholder: "Tone, style, phrases to use or avoid…",
             max: 400,
+            clarifyPrompt: "How would you describe the brand's voice in a sentence?",
           },
           {
             id: "tone",
@@ -134,6 +136,7 @@ export const contentCopywriting: DepartmentSeed = {
             type: "chips",
             slot: "constraint",
             placeholder: "Add a rule and press Enter",
+            clarifyPrompt: "Is there anything this copy must never say or imply?",
           },
           {
             id: "length",

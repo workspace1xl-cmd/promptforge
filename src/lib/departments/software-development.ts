@@ -89,6 +89,7 @@ export const softwareDevelopment: DepartmentSeed = {
             placeholder: "e.g. Self-serve SMB admins on mobile",
             help: "The intended users. Decisions get tailored to them.",
             max: 160,
+            clarifyPrompt: "Who is the primary user of this, and what do they already know?",
           },
         ],
       },
@@ -219,6 +220,8 @@ export const softwareDevelopment: DepartmentSeed = {
             type: "multiselect",
             slot: "constraint",
             help: "What must hold true beyond “it works”.",
+            clarifyPrompt:
+              "Which non-functional requirement matters most here — performance, security, or something else?",
             options: [
               { value: "High performance", label: "High performance" },
               { value: "Strong security", label: "Strong security" },
@@ -238,6 +241,8 @@ export const softwareDevelopment: DepartmentSeed = {
               "Paste house rules: naming, testing policy, review gates, dependencies to avoid…",
             help: "Pasted rules become hard constraints in the generated prompt.",
             max: 1500,
+            clarifyPrompt:
+              "Any house coding standards to assume, or should PromptForge use general best practice?",
           },
           {
             id: "referenceExample",

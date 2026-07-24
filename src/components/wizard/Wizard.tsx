@@ -9,11 +9,17 @@ import type {
   GenerateOptions,
 } from "@/lib/departments/types";
 import { allFields, hasValue, isFieldVisible } from "@/lib/engine/assemble";
+import type { ClarifyQuestion } from "@/lib/engine/clarify";
 import { FieldRenderer } from "./FieldRenderer";
 import { LivePreview } from "./LivePreview";
 import { ResultView, type GenerateResult } from "./ResultView";
-import { Button, Progress, Segmented } from "@/components/ui";
+import { ClarifyPanel } from "./ClarifyPanel";
+import { VariantPicker, type VariantResult } from "./VariantPicker";
+import { Button, Progress, Segmented, Toggle } from "@/components/ui";
 import { cn } from "@/lib/utils";
+
+type Clarification = { question: string; answer: string };
+type Stage = "form" | "clarify" | "variants" | "result";
 
 function buildInitialAnswers(config: DepartmentConfig, preset?: Answers): Answers {
   const a: Answers = {};
@@ -43,8 +49,17 @@ export function Wizard({
   const [verbosity, setVerbosity] = React.useState<GenerateOptions["verbosity"]>("balanced");
   const [rigor, setRigor] = React.useState<GenerateOptions["rigor"]>("guidance");
   const [refine, setRefine] = React.useState("");
+  const [wantVariants, setWantVariants] = React.useState(false);
   const [errors, setErrors] = React.useState<Set<string>>(new Set());
+
+  const [stage, setStage] = React.useState<Stage>("form");
+  const [clarifyQuestions, setClarifyQuestions] = React.useState<ClarifyQuestion[]>([]);
+  const [clarifyAsked, setClarifyAsked] = React.useState(false);
+  const [clarifications, setClarifications] = React.useState<Clarification[]>([]);
+  const [checkingClarify, setCheckingClarify] = React.useState(false);
+
   const [result, setResult] = React.useState<GenerateResult | null>(null);
+  const [variants, setVariants] = React.useState<VariantResult[]>([]);
   const [submissionId, setSubmissionId] = React.useState<string | null>(null);
   const [generating, setGenerating] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
@@ -102,20 +117,49 @@ export function Wizard({
     if (i <= step) setStep(i);
   };
 
-  async function runGenerate(reuseSubmission: boolean) {
-    // validate every required visible field across all steps
-    const missing = allFields(config).filter(
-      (f) => f.required && isFieldVisible(f, answers) && !hasValue(answers[f.id]),
-    );
-    if (missing.length) {
-      setErrors(new Set(missing.map((f) => f.id)));
-      // jump to the step of the first missing field
-      const firstId = missing[0].id;
-      const idx = config.steps.findIndex((s) => s.fields.some((f) => f.id === firstId));
-      if (idx >= 0) setStep(idx);
-      showToast("Please complete the required fields.");
-      return;
+  /** Actually calls the API — single artifact or an A/B pair — and lands on the right stage. */
+  async function doGenerate(clar: Clarification[], reuseSubmission: boolean) {
+    setGenerating(true);
+    try {
+      const endpoint = wantVariants ? "/api/generate/variants" : "/api/generate";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentKey,
+          useCase: options.useCase,
+          outputFormat,
+          verbosity,
+          rigor,
+          refine,
+          answers,
+          clarifications: clar,
+          submissionId: reuseSubmission ? submissionId : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data?.error ?? "Generation failed.");
+        return;
+      }
+      setSubmissionId(data.submissionId ?? null);
+      if (wantVariants && data.variants) {
+        setVariants(data.variants);
+        setStage("variants");
+      } else {
+        setResult(data);
+        setStage("result");
+      }
+      showToast(reuseSubmission ? "Regenerated." : "Prompt generated.");
+    } catch {
+      showToast("Network error — please try again.");
+    } finally {
+      setGenerating(false);
     }
+  }
+
+  /** Regenerate always produces a single fresh version against the same brief. */
+  async function doRegenerate() {
     setGenerating(true);
     try {
       const res = await fetch("/api/generate", {
@@ -129,7 +173,8 @@ export function Wizard({
           rigor,
           refine,
           answers,
-          submissionId: reuseSubmission ? submissionId : undefined,
+          clarifications,
+          submissionId,
         }),
       });
       const data = await res.json();
@@ -139,7 +184,7 @@ export function Wizard({
       }
       setResult(data);
       setSubmissionId(data.submissionId ?? null);
-      showToast(reuseSubmission ? "Regenerated." : "Prompt generated.");
+      showToast("Regenerated.");
     } catch {
       showToast("Network error — please try again.");
     } finally {
@@ -147,21 +192,42 @@ export function Wizard({
     }
   }
 
-  async function saveTemplate(name: string) {
-    try {
-      const res = await fetch("/api/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ departmentKey, useCase: options.useCase, answers, name }),
-      });
-      if (!res.ok) {
-        showToast("Could not save the template.");
-        return;
-      }
-      showToast("Template saved.");
-    } catch {
-      showToast("Could not save the template.");
+  /** "Forge output" — checks whether the brief is thin enough to clarify first. */
+  async function handleForge() {
+    const missing = allFields(config).filter(
+      (f) => f.required && isFieldVisible(f, answers) && !hasValue(answers[f.id]),
+    );
+    if (missing.length) {
+      setErrors(new Set(missing.map((f) => f.id)));
+      const firstId = missing[0].id;
+      const idx = config.steps.findIndex((s) => s.fields.some((f) => f.id === firstId));
+      if (idx >= 0) setStep(idx);
+      showToast("Please complete the required fields.");
+      return;
     }
+
+    if (!clarifyAsked) {
+      setCheckingClarify(true);
+      try {
+        const res = await fetch("/api/clarify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ departmentKey, answers }),
+        });
+        const data = await res.json();
+        if (res.ok && data.underspecified && data.questions?.length) {
+          setClarifyQuestions(data.questions);
+          setStage("clarify");
+          return;
+        }
+      } catch {
+        // If the clarify check itself fails, don't block generation on it.
+      } finally {
+        setCheckingClarify(false);
+        setClarifyAsked(true);
+      }
+    }
+    await doGenerate(clarifications, false);
   }
 
   const progress = (Math.min(step, outputStep) / (totalSteps - 1)) * 100;
@@ -204,7 +270,33 @@ export function Wizard({
         <Progress value={progress} />
       </div>
 
-      {result ? (
+      {stage === "clarify" && (
+        <ClarifyPanel
+          questions={clarifyQuestions}
+          busy={generating}
+          onSkip={() => {
+            setClarifications([]);
+            doGenerate([], false);
+          }}
+          onContinue={(ans) => {
+            setClarifications(ans);
+            doGenerate(ans, false);
+          }}
+        />
+      )}
+
+      {stage === "variants" && (
+        <VariantPicker
+          variants={variants}
+          onBack={() => setStage("form")}
+          onPick={(v) => {
+            setResult(v);
+            setStage("result");
+          }}
+        />
+      )}
+
+      {stage === "result" && result && (
         <ResultView
           result={result}
           options={options}
@@ -214,13 +306,26 @@ export function Wizard({
             if (o.refine !== undefined) setRefine(o.refine);
             if (o.outputFormat) setOutputFormat(o.outputFormat);
           }}
-          onRegenerate={() => runGenerate(true)}
+          onRegenerate={doRegenerate}
           regenerating={generating}
-          onSaveTemplate={saveTemplate}
+          onSaveTemplate={async (name) => {
+            try {
+              const res = await fetch("/api/templates", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ departmentKey, useCase: options.useCase, answers, name }),
+              });
+              showToast(res.ok ? "Template saved." : "Could not save the template.");
+            } catch {
+              showToast("Could not save the template.");
+            }
+          }}
           onToast={showToast}
-          onBack={() => setResult(null)}
+          onBack={() => setStage("form")}
         />
-      ) : (
+      )}
+
+      {stage === "form" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
           {/* form */}
           <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
@@ -298,6 +403,18 @@ export function Wizard({
                       onChange={(v) => v && setRigor(v as GenerateOptions["rigor"])}
                     />
                   </div>
+                  <div className="flex flex-col gap-2 border-t border-dashed border-line pt-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-ink">
+                        Generate 2 variants to compare
+                      </span>
+                      <Toggle checked={wantVariants} onChange={setWantVariants} />
+                    </div>
+                    <p className="text-[12px] text-ink3">
+                      Forges two genuinely different takes — a different technique and
+                      rigour each — so you can pick the better one.
+                    </p>
+                  </div>
                 </div>
               </>
             )}
@@ -312,8 +429,12 @@ export function Wizard({
                   Next →
                 </Button>
               ) : (
-                <Button variant="forge" onClick={() => runGenerate(false)} disabled={generating}>
-                  {generating ? "Forging…" : "Forge output →"}
+                <Button
+                  variant="forge"
+                  onClick={handleForge}
+                  disabled={generating || checkingClarify}
+                >
+                  {checkingClarify ? "Checking brief…" : generating ? "Forging…" : "Forge output →"}
                 </Button>
               )}
             </div>

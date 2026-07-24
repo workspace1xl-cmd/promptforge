@@ -13,6 +13,28 @@ export interface GenerateResult {
   outputFormat: string;
   meta?: Record<string, unknown>;
   generatedPromptId?: string;
+  qualityScore?: number;
+  variantLabel?: string | null;
+}
+
+interface QualityCriterion {
+  key: string;
+  label: string;
+  passed: boolean;
+  note: string;
+  weight: "required" | "bonus";
+}
+interface QualityReport {
+  score: number;
+  criteria: QualityCriterion[];
+  repairedBy: string;
+}
+
+function scoreTone(score?: number): "ok" | "neutral" | "forge" {
+  if (score === undefined) return "neutral";
+  if (score >= 80) return "ok";
+  if (score >= 60) return "forge";
+  return "neutral";
 }
 
 export function ResultView({
@@ -77,6 +99,18 @@ export function ResultView({
             {result.provider}
           </Badge>
         </div>
+        {result.qualityScore !== undefined && (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow">Quality score</span>
+            <Badge tone={scoreTone(result.qualityScore)}>{result.qualityScore}/100</Badge>
+          </div>
+        )}
+        {result.variantLabel && (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow">Chosen from A/B</span>
+            <Badge tone="accent">Variant {result.variantLabel}</Badge>
+          </div>
+        )}
         <div className="flex flex-col gap-2">
           <span className="eyebrow">Verbosity</span>
           <Segmented
@@ -201,6 +235,28 @@ function builtSummary(result: GenerateResult): string {
   s.push(`Technique: ${result.technique}`);
   s.push(`Patterns applied: ${result.patternsUsed.join(", ") || "—"}`);
   s.push(`Output format: ${result.outputFormat}`, "");
+
+  const quality = result.meta?.quality as QualityReport | undefined;
+  if (quality) {
+    s.push(`## Quality report — ${quality.score}/100`, "");
+    s.push(
+      "Checked against the Google whitepaper checklist (task, context, format, constraints, technique, simplicity) plus an examples bonus.",
+      "",
+    );
+    for (const c of quality.criteria) {
+      s.push(`${c.passed ? "✓" : "✗"} ${c.label} (${c.weight}) — ${c.note}`);
+    }
+    s.push(
+      "",
+      quality.repairedBy === "none"
+        ? "No repair was needed — every required check passed on the first pass."
+        : quality.repairedBy === "local"
+          ? "Repaired locally: a mechanical quality note was appended for the checks that came up weak (no API key configured, so nothing was rewritten or invented)."
+          : `Repaired by ${quality.repairedBy}: the model re-verified the checklist against the actual prompt text and rewrote the weak sections without inventing new facts.`,
+    );
+    s.push("");
+  }
+
   const sys = result.meta?.systemMetaPrompt as string | undefined;
   if (sys) {
     s.push("## System meta-prompt sent to the model", "", sys);
@@ -210,7 +266,7 @@ function builtSummary(result: GenerateResult): string {
       "",
       "This artifact was assembled deterministically by PromptForge's built-in engine using the Google whitepaper building blocks (role, task, context, format, technique) and the Vanderbilt prompt patterns above.",
       "",
-      "Add a CEREBRAS_API_KEY to have gpt-oss-120b craft the final artifact from the same structured brief.",
+      "Add a CEREBRAS_API_KEY to have gpt-oss-120b craft the final artifact — and critique/repair it — from the same structured brief.",
     );
   }
   return s.join("\n");
