@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
+/* Dark mode driven by a .dark class on <html> (set by the theme toggle). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f6f9;
+  --surface: #ffffff;
+  --surface2: #f0f2f6;
+  --sunken: #e9ecf2;
+  --ink: #0f1522;
+  --ink2: #47536a;
+  --ink3: #737e92;
+  --line: #e1e5ec;
+  --line2: #ccd3de;
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --accent-soft: #ecebff;
+  --forge: #c2680f;
+  --forge-soft: #f8ecd9;
+  --ok: #15803d;
+  --warn: #b45309;
+  --danger: #dc2626;
+  --danger-soft: #fbe9e9;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+.dark {
+  --bg: #0b0f17;
+  --surface: #121826;
+  --surface2: #182131;
+  --sunken: #0d1220;
+  --ink: #e8edf5;
+  --ink2: #9da9bd;
+  --ink3: #6b7789;
+  --line: #212b3c;
+  --line2: #33415a;
+  --accent: #7f7cff;
+  --accent-fg: #0b0f17;
+  --accent-soft: #1d2140;
+  --forge: #f0a02a;
+  --forge-soft: #2a2113;
+  --ok: #3dd68c;
+  --warn: #e3ac4b;
+  --danger: #f26b6b;
+  --danger-soft: #2e1616;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-forge: var(--forge);
+  --color-forge-soft: var(--forge-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Eyebrow / label utility used across the app. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Thin scrollbars for the code/preview panes. */
+.scroll-thin::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

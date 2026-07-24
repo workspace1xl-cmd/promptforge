@@ -1,65 +1,84 @@
-import Image from "next/image";
+import Link from "next/link";
+import { prisma } from "@/lib/db";
+import { Badge, Card } from "@/components/ui";
 
-export default function Home() {
+// Departments coming in Phase 1 (shown as roadmap, not yet functional).
+const ROADMAP = [
+  { code: "QA", name: "QA / Testing" },
+  { code: "CONTENT", name: "Content / Copywriting" },
+  { code: "DESIGN", name: "Graphics / Design" },
+  { code: "HR", name: "HR" },
+  { code: "MKT", name: "Marketing" },
+];
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const departments = await prisma.department.findMany({
+    where: { active: true },
+    orderBy: { order: "asc" },
+    include: { _count: { select: { complianceRules: true } } },
+  });
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="mx-auto max-w-6xl px-6 py-14">
+      <section className="max-w-2xl">
+        <div className="eyebrow">Department-aware prompt engineering</div>
+        <h1 className="mt-3 text-balance text-4xl font-bold tracking-tight text-ink sm:text-[2.7rem]">
+          Turn a short brief into a{" "}
+          <span className="text-forge">production-ready</span> prompt.
+        </h1>
+        <p className="mt-4 text-[15px] leading-relaxed text-ink2">
+          Pick a department, answer a guided form, and PromptForge assembles a world-class
+          AI prompt — grounded in Google&rsquo;s prompt-engineering building blocks and
+          Vanderbilt&rsquo;s prompt patterns — plus an optional SOP briefing. No blank chat
+          box, no guesswork.
+        </p>
+      </section>
+
+      <section className="mt-10">
+        <div className="eyebrow mb-3">Choose a department</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {departments.map((d) => (
+            <Link key={d.id} href={`/generate/${d.key}`} className="group">
+              <Card className="flex h-full flex-col gap-3 p-5 transition-all group-hover:-translate-y-0.5 group-hover:border-accent group-hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <Badge tone="accent">{d.icon ?? "DEPT"}</Badge>
+                  <span className="mono text-[11px] text-ink3">
+                    {d._count.complianceRules} rules
+                  </span>
+                </div>
+                <h3 className="text-[15.5px] font-semibold tracking-tight text-ink">
+                  {d.name}
+                </h3>
+                <p className="text-[13px] leading-snug text-ink2">{d.description}</p>
+                <span className="mono mt-auto text-[12px] text-ink3 group-hover:text-accent">
+                  Start →
+                </span>
+              </Card>
+            </Link>
+          ))}
+
+          {ROADMAP.map((d) => (
+            <Card
+              key={d.code}
+              className="flex h-full flex-col gap-3 border-dashed bg-surface2/40 p-5 opacity-70"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <div className="flex items-center justify-between">
+                <Badge>{d.code}</Badge>
+                <span className="mono text-[11px] text-ink3">Phase 1</span>
+              </div>
+              <h3 className="text-[15.5px] font-semibold tracking-tight text-ink2">
+                {d.name}
+              </h3>
+              <p className="text-[13px] leading-snug text-ink3">
+                Config-driven — adding this department is JSON, not new code.
+              </p>
+              <span className="mono mt-auto text-[12px] text-ink3">Coming soon</span>
+            </Card>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }

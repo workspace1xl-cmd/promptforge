@@ -1,0 +1,217 @@
+"use client";
+
+import * as React from "react";
+import { Badge, Button, Segmented, Spinner, Tabs, Textarea } from "@/components/ui";
+import type { GenerateOptions } from "@/lib/departments/types";
+
+export interface GenerateResult {
+  prompt: string;
+  sop: string;
+  technique: string;
+  patternsUsed: string[];
+  provider: string;
+  outputFormat: string;
+  meta?: Record<string, unknown>;
+  generatedPromptId?: string;
+}
+
+export function ResultView({
+  result,
+  options,
+  setOptions,
+  onRegenerate,
+  regenerating,
+  onSaveTemplate,
+  onToast,
+  onBack,
+}: {
+  result: GenerateResult;
+  options: GenerateOptions;
+  setOptions: (o: Partial<GenerateOptions>) => void;
+  onRegenerate: () => void;
+  regenerating: boolean;
+  onSaveTemplate: (name: string) => void;
+  onToast: (msg: string) => void;
+  onBack: () => void;
+}) {
+  const [tab, setTab] = React.useState("prompt");
+  const [saving, setSaving] = React.useState(false);
+  const [tplName, setTplName] = React.useState("");
+
+  const current =
+    tab === "sop"
+      ? result.sop
+      : tab === "built"
+        ? builtSummary(result)
+        : result.prompt;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(current);
+      onToast("Copied to clipboard.");
+    } catch {
+      onToast("Copy failed — select and copy manually.");
+    }
+  };
+
+  const download = () => {
+    const blob = new Blob([current], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `promptforge-${tab}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    onToast("File downloaded.");
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      {/* controls */}
+      <aside className="flex h-fit flex-col gap-5 rounded-xl border border-line bg-surface p-5 lg:sticky lg:top-20">
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Provider</span>
+          <Badge tone={result.provider.startsWith("cerebras") ? "ok" : "neutral"}>
+            {result.provider}
+          </Badge>
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Verbosity</span>
+          <Segmented
+            options={[
+              { value: "concise", label: "Concise" },
+              { value: "balanced", label: "Balanced" },
+              { value: "detailed", label: "Detailed" },
+            ]}
+            value={options.verbosity}
+            onChange={(v) => v && setOptions({ verbosity: v as GenerateOptions["verbosity"] })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Rigour</span>
+          <Segmented
+            options={[
+              { value: "guidance", label: "Guidance" },
+              { value: "strict", label: "Strict" },
+            ]}
+            value={options.rigor}
+            onChange={(v) => v && setOptions({ rigor: v as GenerateOptions["rigor"] })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Refine</span>
+          <Textarea
+            placeholder="Extra instructions to weave in…"
+            value={options.refine ?? ""}
+            maxLength={2000}
+            onChange={(e) => setOptions({ refine: e.target.value })}
+          />
+          <Button variant="forge" size="sm" onClick={onRegenerate} disabled={regenerating}>
+            {regenerating ? <Spinner /> : null}
+            {regenerating ? "Regenerating…" : "Regenerate"}
+          </Button>
+        </div>
+      </aside>
+
+      {/* output */}
+      <section className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+        <Tabs
+          tabs={[
+            { id: "prompt", label: "AI prompt" },
+            { id: "sop", label: "SOP / briefing" },
+            { id: "built", label: "How it was built" },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+          <span className="mono text-[11px] tracking-wide text-ink3">
+            {tab === "prompt"
+              ? "READY-TO-PASTE ARTIFACT"
+              : tab === "sop"
+                ? "HUMAN BRIEFING DOCUMENT"
+                : "ENGINEERING TRANSPARENCY"}
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={copy}>
+              Copy
+            </Button>
+            <Button size="sm" onClick={download}>
+              Download .md
+            </Button>
+          </div>
+        </div>
+        <div className="scroll-thin max-h-[62vh] overflow-auto bg-sunken px-5 py-5">
+          <pre className="mono whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">
+            {current}
+          </pre>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
+          {!saving ? (
+            <Button size="sm" onClick={() => setSaving(true)}>
+              Save as template
+            </Button>
+          ) : (
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <input
+                autoFocus
+                value={tplName}
+                onChange={(e) => setTplName(e.target.value)}
+                placeholder="Template name"
+                maxLength={80}
+                className="min-w-[180px] flex-1 rounded-lg border border-line2 bg-surface2 px-3 py-1.5 text-sm text-ink placeholder:text-ink3 focus:outline-none focus:border-accent focus:bg-surface"
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  if (!tplName.trim()) {
+                    onToast("Please enter a template name.");
+                    return;
+                  }
+                  onSaveTemplate(tplName.trim());
+                  setSaving(false);
+                  setTplName("");
+                }}
+              >
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSaving(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+          <div className="ml-auto">
+            <Button size="sm" variant="primary" onClick={onBack}>
+              ← Edit inputs
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function builtSummary(result: GenerateResult): string {
+  const s: string[] = [];
+  s.push("# How this was built", "");
+  s.push(`Provider: ${result.provider}`);
+  s.push(`Technique: ${result.technique}`);
+  s.push(`Patterns applied: ${result.patternsUsed.join(", ") || "—"}`);
+  s.push(`Output format: ${result.outputFormat}`, "");
+  const sys = result.meta?.systemMetaPrompt as string | undefined;
+  if (sys) {
+    s.push("## System meta-prompt sent to the model", "", sys);
+  } else {
+    s.push(
+      "## Assembly",
+      "",
+      "This artifact was assembled deterministically by PromptForge's built-in engine using the Google whitepaper building blocks (role, task, context, format, technique) and the Vanderbilt prompt patterns above.",
+      "",
+      "Add a CEREBRAS_API_KEY to have gpt-oss-120b craft the final artifact from the same structured brief.",
+    );
+  }
+  return s.join("\n");
+}

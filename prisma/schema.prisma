@@ -1,0 +1,129 @@
+// PromptForge — Prisma schema (Prisma 7, PostgreSQL)
+// Data model per the Phase 0 spec: Organization, User, Department,
+// FormTemplate (JSON schema per dept), ComplianceRule, PromptPattern,
+// FormSubmission, GeneratedPrompt (versioned), SOPDocument.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  users       User[]
+  departments Department[]
+}
+
+model User {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String       @unique
+  name      String?
+  role      String       @default("member") // owner | admin | member
+  createdAt DateTime     @default(now())
+}
+
+model Department {
+  id               String            @id @default(cuid())
+  orgId            String
+  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  key              String // stable slug, e.g. "software-development"
+  name             String
+  description      String?
+  icon             String? // short code shown in the UI, e.g. "DEV"
+  order            Int               @default(0)
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  templates        FormTemplate[]
+  complianceRules  ComplianceRule[]
+  submissions      FormSubmission[]
+  generatedPrompts GeneratedPrompt[]
+
+  @@unique([orgId, key])
+}
+
+// The department's form definition, stored as JSON so new departments are
+// config, not code. Versioned; the active row is what the renderer reads.
+model FormTemplate {
+  id           String     @id @default(cuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  version      Int        @default(1)
+  active       Boolean    @default(true)
+  schema       Json
+  createdAt    DateTime   @default(now())
+
+  @@unique([departmentId, version])
+}
+
+// Per-department hard constraints enforced in every generated prompt.
+model ComplianceRule {
+  id           String     @id @default(cuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  code         String
+  label        String
+  description  String
+  severity     String     @default("hard") // hard | soft
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  @@unique([departmentId, code])
+}
+
+// Reusable prompt-engineering pattern catalog (Vanderbilt patterns + techniques).
+model PromptPattern {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String
+  whenToUse   String
+  createdAt   DateTime @default(now())
+}
+
+model FormSubmission {
+  id               String            @id @default(cuid())
+  departmentId     String
+  department       Department        @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  useCase          String
+  answers          Json
+  name             String? // set when the user saves this as a reusable template
+  isTemplate       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  generatedPrompts GeneratedPrompt[]
+}
+
+model GeneratedPrompt {
+  id           String         @id @default(cuid())
+  submissionId String
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  version      Int            @default(1)
+  useCase      String
+  technique    String // zero-shot | few-shot | chain-of-thought | react
+  patternsUsed String[]
+  provider     String // local-engine | cerebras:gpt-oss-120b
+  outputFormat String
+  prompt       String         @db.Text
+  meta         Json?
+  createdAt    DateTime       @default(now())
+  sop          SOPDocument?
+}
+
+model SOPDocument {
+  id                String          @id @default(cuid())
+  generatedPromptId String          @unique
+  generatedPrompt   GeneratedPrompt @relation(fields: [generatedPromptId], references: [id], onDelete: Cascade)
+  title             String
+  body              String          @db.Text
+  createdAt         DateTime        @default(now())
+}
