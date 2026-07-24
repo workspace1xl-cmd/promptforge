@@ -346,7 +346,7 @@ export function Wizard({
                 </div>
                 <div className="flex flex-col gap-5">
                   {config.steps[step].fields
-                    .filter((f) => isFieldVisible(f, answers))
+                    .filter((f) => isFieldVisible(f, answers) && !f.adminLocked)
                     .map((f) => (
                       <FieldRenderer
                         key={f.id}

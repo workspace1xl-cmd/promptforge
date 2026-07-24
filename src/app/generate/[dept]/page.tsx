@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { Wizard } from "@/components/wizard/Wizard";
 import { Badge } from "@/components/ui";
 import type { Answers, ComplianceRuleDef, DepartmentConfig } from "@/lib/departments/types";
+import { applyFieldOverrides } from "@/lib/departments/overrides";
 
 export default async function GeneratePage({
   params,
@@ -20,12 +21,14 @@ export default async function GeneratePage({
     include: {
       templates: { where: { active: true }, orderBy: { version: "desc" }, take: 1 },
       complianceRules: { where: { active: true } },
+      fieldOverrides: true,
     },
   });
 
   if (!department || !department.templates[0]) notFound();
 
-  const config = department.templates[0].schema as unknown as DepartmentConfig;
+  const baseConfig = department.templates[0].schema as unknown as DepartmentConfig;
+  const config = applyFieldOverrides(baseConfig, department.fieldOverrides);
   const compliance: ComplianceRuleDef[] = department.complianceRules.map((r) => ({
     code: r.code,
     label: r.label,

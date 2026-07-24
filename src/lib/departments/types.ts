@@ -56,7 +56,17 @@ export interface FieldDef {
    * plain-English question asked in the pre-generation clarify step.
    */
   clarifyPrompt?: string;
+  /**
+   * Set by merging a FieldOverride at read time (never authored in a
+   * department's static config). When true, the wizard never shows this
+   * field — its value comes from `default` (set to the override's
+   * lockedValue) and still flows into every generated prompt.
+   */
+  adminLocked?: boolean;
 }
+
+/** Field types whose value can be safely fixed to a single scalar by an admin lock. */
+export const LOCKABLE_FIELD_TYPES: FieldType[] = ["text", "textarea", "select", "segment", "number"];
 
 export interface WizardStep {
   id: string;

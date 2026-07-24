@@ -80,7 +80,9 @@ export function SiteHeader() {
           <NavLink href="/" label="New" />
           <NavLink href="/templates" label="Templates" />
           <NavLink href="/history" label="History" />
+          <NavLink href="/analytics" label="Analytics" />
           <NavLink href="/admin/compliance" label="Rules" />
+          <NavLink href="/admin/fields" label="Fields" />
           <div className="ml-1">
             <ThemeToggle />
           </div>

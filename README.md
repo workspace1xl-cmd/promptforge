@@ -62,8 +62,25 @@ to freehand a blank chat box.
   brief (a different technique *and* rigour each, e.g. `zero-shot` vs `chain-of-thought`),
   versioned against the same submission, so there's a real choice to make.
 
-Later phases (not built yet): integrations (send to a coding agent / ticket system) and
-org-level analytics.
+**Phase 3** — polish, integrations, analytics:
+
+- **Hand-off connectors** — send a generated artifact straight to **GitHub** (opens an
+  issue) or **Jira** (opens a ticket), both optional and env-gated (`GITHUB_TOKEN`/
+  `GITHUB_REPO`, `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN`/`JIRA_PROJECT_KEY`). With
+  neither configured, the UI clearly shows "not configured" and every attempt — success,
+  failure, or not-configured — is written to `HandoffLog` for a real audit trail.
+- **Org analytics** (`/analytics`) — submissions, generations, reuse rate, saved templates,
+  generations and average quality score per department, provider/technique mix, a 14-day
+  activity chart, and hand-off attempt counts. Server-rendered straight from Prisma
+  aggregates.
+- **Field overrides** (`/admin/fields`) — the closest fit to "fine-grained roles" that's
+  honest about this app having no auth yet (see Known limitations below): an org admin can
+  make any field required/optional, or **lock** it to a fixed value so it never appears in
+  the wizard but still shapes every generated prompt for that department — enforced
+  server-side (`enforceLockedAnswers`), not just hidden client-side.
+- **Export to PDF / Word** — the prompt + SOP bundle as a formatted, paginated document
+  (`pdf-lib` for PDF with hand-rolled text layout, `docx` for Word), generated in memory with
+  no filesystem writes.
 
 ---
 
@@ -104,21 +121,28 @@ when a key is present, and otherwise renders the artifact deterministically.
 src/
 ├── app/
 │   ├── page.tsx                 # department picker
-│   ├── generate/[dept]/page.tsx # loads config from DB → <Wizard/> (?template= prefills)
+│   ├── generate/[dept]/page.tsx # loads config + overrides from DB → <Wizard/> (?template= prefills)
 │   ├── history/page.tsx         # saved generations (versioned)
 │   ├── templates/page.tsx       # templates library
+│   ├── analytics/page.tsx       # org-wide usage dashboard
 │   ├── admin/compliance/page.tsx# per-department rule editor
-│   └── api/{generate,generate/variants,clarify,templates,compliance}/route.ts
+│   ├── admin/fields/page.tsx    # per-department field require/lock editor
+│   └── api/{generate,generate/variants,clarify,templates,compliance,
+│            field-overrides,handoff,handoff/status,export/[id]}/route.ts
 ├── components/                  # ui primitives, inputs, wizard, result view, admin
-│   └── wizard/                  # FieldRenderer, LivePreview, ClarifyPanel, VariantPicker, ResultView
+│   └── wizard/                  # FieldRenderer, LivePreview, ClarifyPanel, VariantPicker,
+│                                 # HandoffPanel, ResultView
 └── lib/
-    ├── departments/             # config types + six department configs + registry
+    ├── departments/             # config types + six department configs + registry + overrides.ts
     ├── engine/                  # patterns, assemble (isomorphic), critique (quality/repair),
     │                             # clarify (Flipped Interaction), provider (Cerebras + local)
+    ├── integrations/            # github.ts, jira.ts (optional, env-gated), format.ts
+    ├── export/                  # pdf.ts, docx.ts, markdown-lines.ts (shared parser), types.ts
     ├── server/runGeneration.ts  # shared persist+critique helper for single & A/B generation
+    ├── analytics-window.ts      # all Date.now()/new Date() impurity lives here, not in components
     ├── validation.ts            # zod request schemas + required-field checks
     └── db.ts                    # Prisma client (pg adapter)
-prisma/schema.prisma             # 9 models per the spec + qualityScore/variantLabel
+prisma/schema.prisma             # 11 models: the original 9 + FieldOverride + HandoffLog
 prisma/seed.ts                   # org, prompt patterns, department configs, compliance rules
 ```
 
@@ -136,6 +160,8 @@ npm install
 cp .env.example .env
 #    → set DATABASE_URL to your Postgres connection string
 #    → (optional) set CEREBRAS_API_KEY to use gpt-oss-120b; blank uses the local engine
+#    → (optional) set GITHUB_TOKEN/GITHUB_REPO and/or JIRA_* to enable hand-off connectors;
+#      blank means the UI shows "not configured" and falls back to copy
 
 # 3. Create the schema and seed the Software Development department
 npm run db:push
@@ -164,6 +190,30 @@ prompt engineer…") plus a structured-input payload and sends them to `gpt-oss-
 OpenAI-compatible chat-completions endpoint. With no key, the deterministic local engine
 assembles the same structured artifact. Either way the interface — and the saved output — is
 identical, so you can start without a key and switch on the model later.
+
+## Known limitations (read before a real deploy)
+
+- **No authentication.** A single seeded organisation, no login — a deliberate Phase 0
+  scope decision, not an oversight. Every route, including both admin screens
+  (`/admin/compliance`, `/admin/fields`) and the hand-off/export endpoints, is reachable by
+  anyone who can reach the deployment. Fine for an internal/trusted deployment; **do not**
+  put real `GITHUB_TOKEN`/`JIRA_API_TOKEN` credentials on a publicly-reachable instance
+  without adding auth first — an unauthenticated caller could otherwise spam issue/ticket
+  creation using the operator's credentials.
+- **No rate limiting** anywhere, including the Cerebras calls and the two hand-off
+  connectors. Same recommendation as above: add rate limiting (e.g. a per-IP limiter backed
+  by Upstash Redis) before enabling real connector credentials in a public deployment.
+- `npm audit` reports 7 pre-existing high/moderate findings (in `next`, `prisma`, `postcss`,
+  `sharp`, `find-my-way`, `valibot`) — none from `pdf-lib`/`docx`. All are in code paths this
+  app doesn't exercise (Next's Image Optimization / `sharp` — no `next/image` used anywhere;
+  Prisma's local `prisma dev` server — this project uses its own Postgres instead) or are
+  build-time-only (`postcss`). Fixing them means downgrading `next`/`prisma` by a major
+  version, which isn't warranted given the actual exposure. Re-check on the next `next`/
+  `prisma` release.
+- Locked fields' full config metadata (label, help text) still travels to the client in the
+  React hydration payload even though the field never renders — not a security issue
+  (nothing secret; the same value ends up in the generated prompt anyway) but worth trimming
+  server-side before passing config to `<Wizard>` if payload size ever matters.
 
 [Google Prompt Engineering whitepaper]: https://www.kaggle.com/whitepaper-prompt-engineering
 [Vanderbilt prompt patterns]: https://www.coursera.org/specializations/prompt-engineering

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Badge, Button, Segmented, Spinner, Tabs, Textarea } from "@/components/ui";
 import type { GenerateOptions } from "@/lib/departments/types";
+import { HandoffPanel } from "./HandoffPanel";
 
 export interface GenerateResult {
   prompt: string;
@@ -87,6 +88,32 @@ export function ResultView({
     a.remove();
     URL.revokeObjectURL(url);
     onToast("File downloaded.");
+  };
+
+  const exportBundle = async (format: "pdf" | "docx") => {
+    if (!result.generatedPromptId) {
+      onToast("Generate a prompt first.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/export/${result.generatedPromptId}?format=${format}`);
+      if (!res.ok) {
+        onToast(`Export failed (${format}).`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `promptforge-export.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onToast(`${format === "pdf" ? "PDF" : "Word document"} downloaded.`);
+    } catch {
+      onToast("Export failed — please try again.");
+    }
   };
 
   return (
@@ -181,6 +208,17 @@ export function ResultView({
           <pre className="mono whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">
             {current}
           </pre>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
+          <span className="eyebrow mr-1">Hand off</span>
+          <HandoffPanel generatedPromptId={result.generatedPromptId} onToast={onToast} />
+          <span className="eyebrow ml-3 mr-1">Export</span>
+          <Button size="sm" onClick={() => exportBundle("pdf")} disabled={!result.generatedPromptId}>
+            PDF
+          </Button>
+          <Button size="sm" onClick={() => exportBundle("docx")} disabled={!result.generatedPromptId}>
+            Word
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
           {!saving ? (

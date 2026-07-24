@@ -46,6 +46,7 @@ model Department {
   complianceRules  ComplianceRule[]
   submissions      FormSubmission[]
   generatedPrompts GeneratedPrompt[]
+  fieldOverrides   FieldOverride[]
 
   @@unique([orgId, key])
 }
@@ -128,4 +129,34 @@ model SOPDocument {
   title             String
   body              String          @db.Text
   createdAt         DateTime        @default(now())
+}
+
+// Phase 3 — lets an org admin require or lock a department's field at
+// runtime, without a code deploy. A "locked" field is fixed to lockedValue
+// and hidden from the wizard entirely; the fixed value still flows into
+// every generated prompt for that department.
+model FieldOverride {
+  id           String     @id @default(cuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  fieldId      String // matches a FieldDef.id in the department's FormTemplate.schema
+  required     Boolean? // null = no override, defer to the field's own config
+  locked       Boolean    @default(false)
+  lockedValue  Json? // only meaningful when locked = true
+  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now())
+
+  @@unique([departmentId, fieldId])
+}
+
+// Phase 3 — an audit trail of hand-off attempts (GitHub issue / Jira ticket /
+// manual copy), success or failure, for the analytics reuse-rate view and so
+// a failed external call is never silent.
+model HandoffLog {
+  id                String   @id @default(cuid())
+  generatedPromptId String
+  target           String // github | jira | copy
+  status           String // success | failed | not_configured
+  detail           String? // ticket URL on success, error summary on failure
+  createdAt        DateTime @default(now())
 }

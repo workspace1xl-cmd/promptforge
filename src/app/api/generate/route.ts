@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { runGeneration } from "@/lib/server/runGeneration";
 import { generateRequestSchema, missingRequired } from "@/lib/validation";
 import type { Answers, ComplianceRuleDef, DepartmentConfig, GenerateOptions } from "@/lib/departments/types";
+import { applyFieldOverrides, enforceLockedAnswers } from "@/lib/departments/overrides";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -25,20 +26,24 @@ export async function POST(request: Request) {
     include: {
       templates: { where: { active: true }, orderBy: { version: "desc" }, take: 1 },
       complianceRules: { where: { active: true } },
+      fieldOverrides: true,
     },
   });
   if (!department || !department.templates[0]) {
     return Response.json({ error: "Unknown department." }, { status: 404 });
   }
 
-  const config = department.templates[0].schema as unknown as DepartmentConfig;
+  const baseConfig = department.templates[0].schema as unknown as DepartmentConfig;
+  const config = applyFieldOverrides(baseConfig, department.fieldOverrides);
   const compliance: ComplianceRuleDef[] = department.complianceRules.map((r) => ({
     code: r.code,
     label: r.label,
     description: r.description,
     severity: r.severity as "hard" | "soft",
   }));
-  const answers = body.answers as Answers;
+  // A locked field's value is enforced server-side regardless of what the
+  // client sent — a tampered request can't unlock or omit it.
+  const answers = enforceLockedAnswers(config, body.answers as Answers);
 
   const missing = missingRequired(config, answers);
   if (missing.length) {
