@@ -20,10 +20,34 @@ export const softwareDevelopment: DepartmentSeed = {
       { id: "spec", name: "Technical spec / design doc" },
     ],
     outputFormats: [
-      { value: "build-prompt", label: "Codex-style build prompt" },
-      { value: "prd", label: "Product requirements doc (PRD)" },
-      { value: "sop", label: "Engineering SOP / brief" },
-      { value: "all", label: "All three" },
+      {
+        value: "build-prompt",
+        label: "Codex-style build prompt",
+        technique: "react",
+        instruction:
+          "Produce a Codex-style build prompt an autonomous coding agent can execute: a clear objective, an ordered task breakdown, the tech stack, acceptance criteria, and a working agreement (plan first, work in small verifiable steps).",
+      },
+      {
+        value: "prd",
+        label: "Product requirements doc (PRD)",
+        technique: "chain-of-thought",
+        instruction:
+          "Produce a product requirements document: problem, goals, non-goals, requirements, success metrics and open questions.",
+      },
+      {
+        value: "sop",
+        label: "Engineering SOP / brief",
+        technique: "zero-shot",
+        instruction:
+          "Produce an engineering SOP / brief: purpose, scope, prerequisites, numbered procedure and checks.",
+      },
+      {
+        value: "all",
+        label: "All three",
+        technique: "react",
+        instruction:
+          "Produce three clearly separated sections: (1) a PRD, (2) a Codex-style build prompt, and (3) a short SOP / brief.",
+      },
     ],
     defaultOutputFormat: "build-prompt",
     steps: [

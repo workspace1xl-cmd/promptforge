@@ -2,15 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 
-// Departments coming in Phase 1 (shown as roadmap, not yet functional).
-const ROADMAP = [
-  { code: "QA", name: "QA / Testing" },
-  { code: "CONTENT", name: "Content / Copywriting" },
-  { code: "DESIGN", name: "Graphics / Design" },
-  { code: "HR", name: "HR" },
-  { code: "MKT", name: "Marketing" },
-];
-
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -57,25 +48,6 @@ export default async function Home() {
                 </span>
               </Card>
             </Link>
-          ))}
-
-          {ROADMAP.map((d) => (
-            <Card
-              key={d.code}
-              className="flex h-full flex-col gap-3 border-dashed bg-surface2/40 p-5 opacity-70"
-            >
-              <div className="flex items-center justify-between">
-                <Badge>{d.code}</Badge>
-                <span className="mono text-[11px] text-ink3">Phase 1</span>
-              </div>
-              <h3 className="text-[15.5px] font-semibold tracking-tight text-ink2">
-                {d.name}
-              </h3>
-              <p className="text-[13px] leading-snug text-ink3">
-                Config-driven — adding this department is JSON, not new code.
-              </p>
-              <span className="mono mt-auto text-[12px] text-ink3">Coming soon</span>
-            </Card>
           ))}
         </div>
       </section>

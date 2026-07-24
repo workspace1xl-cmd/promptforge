@@ -73,9 +73,11 @@ export function SiteHeader() {
             </div>
           </div>
         </Link>
-        <nav className="flex items-center gap-1.5">
+        <nav className="flex items-center gap-1">
           <NavLink href="/" label="New" />
+          <NavLink href="/templates" label="Templates" />
           <NavLink href="/history" label="History" />
+          <NavLink href="/admin/compliance" label="Rules" />
           <div className="ml-1">
             <ThemeToggle />
           </div>

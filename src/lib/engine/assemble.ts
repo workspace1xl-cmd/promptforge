@@ -71,19 +71,16 @@ function outputFormatLabel(config: DepartmentConfig, value: string): string {
   return config.outputFormats.find((o) => o.value === value)?.label ?? value;
 }
 
-function outputFormatInstruction(value: string, label: string): string {
-  switch (value) {
-    case "build-prompt":
-      return `Produce a Codex-style build prompt an autonomous coding agent can execute: a clear objective, an ordered task breakdown, the tech stack, acceptance criteria, and a working agreement (plan first, work in small verifiable steps).`;
-    case "prd":
-      return `Produce a product requirements document: problem, goals, non-goals, requirements, success metrics and open questions.`;
-    case "sop":
-      return `Produce an engineering SOP / brief: purpose, scope, prerequisites, numbered procedure and checks.`;
-    case "all":
-      return `Produce three clearly separated sections: (1) a PRD, (2) a Codex-style build prompt, and (3) a short SOP / brief.`;
-    default:
-      return `Format the result as: ${label}.`;
-  }
+// Config-driven: the instruction lives on the department's output-format option.
+function outputFormatInstruction(
+  config: DepartmentConfig,
+  value: string,
+  label: string,
+): string {
+  return (
+    config.outputFormats.find((o) => o.value === value)?.instruction ??
+    `Format the result as: ${label}.`
+  );
 }
 
 function selectTechnique(
@@ -93,13 +90,14 @@ function selectTechnique(
   hasExamples: boolean,
 ): Technique {
   if (hasExamples) return "few-shot";
-  if (options.outputFormat === "build-prompt" || options.outputFormat === "all")
-    return "react";
-  // Complexity signal: many filled fields or a heavy artifact → reason first.
+  // A department can pin a preferred technique to a given output artifact.
+  const def = config.outputFormats.find((o) => o.value === options.outputFormat);
+  if (def?.technique) return def.technique;
+  // Otherwise: many filled fields → reason first.
   const filled = allFields(config).filter(
     (f) => isFieldVisible(f, answers) && hasValue(answers[f.id]),
   ).length;
-  if (options.outputFormat === "prd" || filled >= 8) return "chain-of-thought";
+  if (filled >= 8) return "chain-of-thought";
   return "zero-shot";
 }
 
@@ -180,7 +178,7 @@ export function buildModel(
     formatNotes,
     examples,
     outputFormatLabel: label,
-    outputFormatInstruction: outputFormatInstruction(options.outputFormat, label),
+    outputFormatInstruction: outputFormatInstruction(config, options.outputFormat, label),
     technique,
     patternsUsed,
   };

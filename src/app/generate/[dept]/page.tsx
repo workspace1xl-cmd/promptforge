@@ -3,14 +3,17 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Wizard } from "@/components/wizard/Wizard";
 import { Badge } from "@/components/ui";
-import type { ComplianceRuleDef, DepartmentConfig } from "@/lib/departments/types";
+import type { Answers, ComplianceRuleDef, DepartmentConfig } from "@/lib/departments/types";
 
 export default async function GeneratePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ dept: string }>;
+  searchParams: Promise<{ template?: string }>;
 }) {
   const { dept } = await params;
+  const { template } = await searchParams;
 
   const department = await prisma.department.findFirst({
     where: { key: dept, active: true },
@@ -30,12 +33,18 @@ export default async function GeneratePage({
     severity: r.severity as "hard" | "soft",
   }));
 
+  // Load a saved template's answers, if requested (and it belongs to this dept).
+  let presetAnswers: Answers | undefined;
+  if (template) {
+    const saved = await prisma.formSubmission.findFirst({
+      where: { id: template, departmentId: department.id, isTemplate: true },
+    });
+    if (saved) presetAnswers = saved.answers as Answers;
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <Link
-        href="/"
-        className="mono text-[12px] tracking-wide text-ink3 hover:text-accent"
-      >
+      <Link href="/" className="mono text-[12px] tracking-wide text-ink3 hover:text-accent">
         ← All departments
       </Link>
       <div className="mb-7 mt-2 flex items-center gap-3">
@@ -46,7 +55,12 @@ export default async function GeneratePage({
         </div>
       </div>
 
-      <Wizard config={config} compliance={compliance} departmentKey={department.key} />
+      <Wizard
+        config={config}
+        compliance={compliance}
+        departmentKey={department.key}
+        presetAnswers={presetAnswers}
+      />
     </main>
   );
 }

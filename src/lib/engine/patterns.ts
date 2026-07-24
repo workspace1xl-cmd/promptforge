@@ -69,6 +69,23 @@ export const PROMPT_PATTERNS: PatternDef[] = [
     instruction:
       "Produce a directly usable artifact. Do not wrap it in commentary or preamble.",
   },
+  {
+    key: "audience",
+    name: "Audience Pattern",
+    description:
+      "Tailor vocabulary, depth and framing to a specific, named audience.",
+    whenToUse: "Content, marketing and anything read by a defined persona.",
+    instruction:
+      "Write for the specified audience — match their vocabulary, depth and concerns.",
+  },
+  {
+    key: "constraint",
+    name: "Constraint Pattern",
+    description: "Enforce explicit boundaries the output must never cross.",
+    whenToUse: "Legal, brand, compliance and safety-sensitive work.",
+    instruction:
+      "Respect every stated boundary as a hard limit; if a request conflicts with a constraint, the constraint wins.",
+  },
 ];
 
 export const PATTERN_MAP: Record<string, PatternDef> = Object.fromEntries(

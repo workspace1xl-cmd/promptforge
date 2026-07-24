@@ -15,25 +15,29 @@ import { ResultView, type GenerateResult } from "./ResultView";
 import { Button, Progress, Segmented } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-function initialAnswers(config: DepartmentConfig): Answers {
+function buildInitialAnswers(config: DepartmentConfig, preset?: Answers): Answers {
   const a: Answers = {};
   for (const f of allFields(config)) if (f.default !== undefined) a[f.id] = f.default;
-  return a;
+  return { ...a, ...(preset ?? {}) };
 }
 
 export function Wizard({
   config,
   compliance,
   departmentKey,
+  presetAnswers,
 }: {
   config: DepartmentConfig;
   compliance: ComplianceRuleDef[];
   departmentKey: string;
+  presetAnswers?: Answers;
 }) {
   const outputStep = config.steps.length;
   const totalSteps = config.steps.length + 1;
 
-  const [answers, setAnswers] = React.useState<Answers>(() => initialAnswers(config));
+  const [answers, setAnswers] = React.useState<Answers>(() =>
+    buildInitialAnswers(config, presetAnswers),
+  );
   const [step, setStep] = React.useState(0);
   const [outputFormat, setOutputFormat] = React.useState(config.defaultOutputFormat);
   const [verbosity, setVerbosity] = React.useState<GenerateOptions["verbosity"]>("balanced");

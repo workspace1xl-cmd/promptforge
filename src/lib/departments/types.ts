@@ -65,6 +65,16 @@ export interface UseCase {
   description?: string;
 }
 
+/** A desired output artifact, with the instruction + technique that shape it. */
+export interface OutputFormatDef {
+  value: string;
+  label: string;
+  /** How the model should shape this artifact (fed into the FORMAT section). */
+  instruction: string;
+  /** Preferred technique for this artifact; overrides the complexity heuristic. */
+  technique?: "zero-shot" | "few-shot" | "chain-of-thought" | "react";
+}
+
 export interface DepartmentConfig {
   key: string;
   name: string;
@@ -77,7 +87,7 @@ export interface DepartmentConfig {
   useCases: UseCase[];
   steps: WizardStep[];
   /** Desired output artifact choices (PRD / build prompt / SOP / …). */
-  outputFormats: FieldOption[];
+  outputFormats: OutputFormatDef[];
   defaultOutputFormat: string;
 }
 

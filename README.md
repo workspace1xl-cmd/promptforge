@@ -16,27 +16,36 @@ to freehand a blank chat box.
 
 ---
 
-## Status — Phase 0 (complete)
+## Status — Phases 0 & 1 (complete)
 
-Phase 0 delivers one department (**Software Development**) working end-to-end, so the whole
-pipeline is validated before scaling:
+**Phase 0** — the pipeline, proven end-to-end on one department:
 
 - Config-driven **dynamic multi-step wizard** with conditional/branching fields
   (e.g. turning on “needs a back end” reveals the database & hosting fields).
 - **Live meta-prompt preview** that assembles as you type, with a seven-part framework
   legend (Role · Task · Context · Constraints · Format · Examples · Technique).
-- **Automatic technique selection** (zero-shot / few-shot / chain-of-thought / ReAct) from
-  signals in the form.
+- **Automatic technique selection** (zero-shot / few-shot / chain-of-thought / ReAct).
 - Per-department **compliance rules** injected as hard constraints in every prompt.
 - Three artifacts from one brief: **AI prompt**, **SOP / briefing**, and a
   **“how it was built”** transparency view.
-- **History & versioning** — every generation is saved and re-viewable.
-- **Save as template**, regenerate with verbosity/rigour controls and free-text refinement.
-- Light/dark themes, keyboard-accessible, responsive.
+- **History & versioning**, **save as template**, regenerate with verbosity/rigour and
+  free-text refinement. Light/dark, keyboard-accessible, responsive.
 
-Later phases (not built yet): multi-department expansion (QA, Content, Design, HR,
-Marketing) as **config only**, a compliance-rules admin screen, a prompt-quality critique
-pass, clarify-before-generating, and integrations/analytics.
+**Phase 1** — scaled out, and it validated the core abstraction:
+
+- **Six departments**, all driven by config with **zero new UI or engine code**:
+  Software Development, QA / Testing, Content / Copywriting, Graphics / Design, HR,
+  Marketing. Each is one `DepartmentConfig` object with its own wizard, branching,
+  persona, patterns, output formats and compliance rules.
+- Output-format instructions and technique preferences are now **config-driven**, so a new
+  department shapes its own prompts without touching the engine.
+- **Compliance-rules admin** (`/admin/compliance`) — add, edit, retire or toggle rules per
+  department without a code deploy.
+- **Templates library** (`/templates`) — save a filled-in brief and load it back into the
+  wizard pre-filled (`/generate/<dept>?template=<id>`).
+
+Later phases (not built yet): a prompt-quality critique/repair pass, clarify-before-generating
+(Flipped Interaction), A/B variants, and integrations/analytics.
 
 ---
 
@@ -77,17 +86,19 @@ when a key is present, and otherwise renders the artifact deterministically.
 src/
 ├── app/
 │   ├── page.tsx                 # department picker
-│   ├── generate/[dept]/page.tsx # loads config from DB → <Wizard/>
-│   ├── history/page.tsx         # saved generations
-│   └── api/{generate,templates}/route.ts
-├── components/                  # ui primitives, inputs, wizard, result view
+│   ├── generate/[dept]/page.tsx # loads config from DB → <Wizard/> (?template= prefills)
+│   ├── history/page.tsx         # saved generations (versioned)
+│   ├── templates/page.tsx       # templates library
+│   ├── admin/compliance/page.tsx# per-department rule editor
+│   └── api/{generate,templates,compliance}/route.ts
+├── components/                  # ui primitives, inputs, wizard, result view, admin
 └── lib/
-    ├── departments/             # config types + Software Development config + registry
+    ├── departments/             # config types + six department configs + registry
     ├── engine/                  # patterns, assemble (isomorphic), provider (Cerebras + local)
     ├── validation.ts            # zod request schema + required-field checks
     └── db.ts                    # Prisma client (pg adapter)
 prisma/schema.prisma             # 9 models per the spec
-prisma/seed.ts                   # org, prompt patterns, department config, compliance rules
+prisma/seed.ts                   # org, prompt patterns, department configs, compliance rules
 ```
 
 ---
