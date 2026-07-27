@@ -51,6 +51,10 @@ async function callCerebras(
       temperature: 0.4,
       max_tokens: 4096,
     }),
+    // Without a timeout, a hung Cerebras connection would stall the request
+    // indefinitely — the local-engine fallback only helps if this call is
+    // guaranteed to eventually fail.
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

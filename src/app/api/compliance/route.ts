@@ -73,13 +73,23 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid request." }, { status: 400 });
   const { id, ...data } = parsed.data;
-  await prisma.complianceRule.update({ where: { id }, data });
+  try {
+    await prisma.complianceRule.update({ where: { id }, data });
+  } catch {
+    // Prisma throws (P2025) rather than returning null when the target row
+    // is already gone — treat that as a clean 404, not a server error.
+    return Response.json({ error: "Rule not found." }, { status: 404 });
+  }
   return Response.json({ ok: true });
 }
 
 export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return Response.json({ error: "Missing id." }, { status: 400 });
-  await prisma.complianceRule.delete({ where: { id } });
+  try {
+    await prisma.complianceRule.delete({ where: { id } });
+  } catch {
+    return Response.json({ error: "Rule not found." }, { status: 404 });
+  }
   return Response.json({ ok: true });
 }

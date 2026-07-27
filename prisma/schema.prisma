@@ -120,6 +120,19 @@ model GeneratedPrompt {
   meta         Json?
   createdAt    DateTime       @default(now())
   sop          SOPDocument?
+
+  // Data-integrity safety net: two concurrent generations against the same
+  // submission (e.g. a double-submitted request) must not silently produce
+  // duplicate version numbers — the DB rejects the second one, and
+  // runGeneration() retries with a freshly-counted version instead.
+  // NOT YET APPLIED to any database — `prisma db push` for this constraint
+  // needs explicit operator consent (Prisma's CLI requires it for anything
+  // that could reject existing rows). Until applied, runGeneration()'s retry
+  // loop is a harmless no-op (it always succeeds on the first attempt) and
+  // the original narrow race window from Phase 3 still exists. Run
+  // `npx prisma db push` (with consent) against the target database to
+  // actually close it.
+  @@unique([submissionId, version])
 }
 
 model SOPDocument {

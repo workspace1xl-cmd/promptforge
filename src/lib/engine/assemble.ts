@@ -324,7 +324,9 @@ export function buildStructuredInput(model: MetaModel): string {
 export function frameworkParts(model: MetaModel): { name: string; filled: boolean }[] {
   return [
     { name: "Role", filled: true },
-    { name: "Task", filled: model.task.length > 0 || true },
+    // Task is always considered filled — the objective line (taskLead) is
+    // present regardless of whether any task-slotted field was answered.
+    { name: "Task", filled: true },
     { name: "Context", filled: model.context.length + model.audience.length > 0 },
     {
       name: "Constraints",

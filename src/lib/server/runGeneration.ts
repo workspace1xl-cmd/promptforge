@@ -4,9 +4,12 @@
 // so their version numbers don't race).
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { generate } from "@/lib/engine/provider";
 import { critique } from "@/lib/engine/critique";
 import type { Answers, ComplianceRuleDef, DepartmentConfig, GenerateOptions } from "@/lib/departments/types";
+
+const MAX_VERSION_RETRIES = 3;
 
 const json = (v: unknown) => JSON.parse(JSON.stringify(v));
 
@@ -41,27 +44,46 @@ export async function runGeneration(input: RunGenerationInput) {
     submissionId = sub.id;
   }
 
-  const priorVersions = await prisma.generatedPrompt.count({ where: { submissionId } });
   const outputFormatLabel = (engine.meta.outputFormat as string) ?? options.outputFormat;
   const meta = json({ ...engine.meta, quality });
 
-  const gp = await prisma.generatedPrompt.create({
-    data: {
-      submissionId,
-      departmentId,
-      version: priorVersions + 1,
-      useCase: options.useCase,
-      technique: engine.technique,
-      patternsUsed: engine.patternsUsed,
-      provider: engine.provider,
-      outputFormat: outputFormatLabel,
-      prompt: finalPrompt,
-      qualityScore: quality.score,
-      variantLabel: input.variantLabel ?? null,
-      meta,
-      sop: { create: { title: `${config.name} — Brief`, body: engine.sop } },
-    },
-  });
+  // count-then-insert races if two requests hit the same submission at once;
+  // the @@unique([submissionId, version]) constraint (see schema.prisma —
+  // NOT YET APPLIED to the database pending operator consent) catches that
+  // instead of silently producing duplicate version numbers, and we just
+  // recount+retry. Until that migration is applied, this loop always
+  // succeeds on the first attempt (harmless no-op, not a regression).
+  let gp: Awaited<ReturnType<typeof prisma.generatedPrompt.create>> | undefined;
+  let version = 0;
+  for (let attempt = 0; attempt < MAX_VERSION_RETRIES; attempt++) {
+    const priorVersions = await prisma.generatedPrompt.count({ where: { submissionId } });
+    version = priorVersions + 1;
+    try {
+      gp = await prisma.generatedPrompt.create({
+        data: {
+          submissionId,
+          departmentId,
+          version,
+          useCase: options.useCase,
+          technique: engine.technique,
+          patternsUsed: engine.patternsUsed,
+          provider: engine.provider,
+          outputFormat: outputFormatLabel,
+          prompt: finalPrompt,
+          qualityScore: quality.score,
+          variantLabel: input.variantLabel ?? null,
+          meta,
+          sop: { create: { title: `${config.name} — Brief`, body: engine.sop } },
+        },
+      });
+      break;
+    } catch (err) {
+      const isVersionConflict =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+      if (!isVersionConflict || attempt === MAX_VERSION_RETRIES - 1) throw err;
+    }
+  }
+  if (!gp) throw new Error("Could not create the generation after retrying.");
 
   return {
     prompt: finalPrompt,
@@ -75,6 +97,6 @@ export async function runGeneration(input: RunGenerationInput) {
     variantLabel: input.variantLabel ?? null,
     generatedPromptId: gp.id,
     submissionId,
-    version: priorVersions + 1,
+    version,
   };
 }

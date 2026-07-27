@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { answersSchema, shortId } from "@/lib/validation";
 
 const json = (v: unknown) => JSON.parse(JSON.stringify(v));
 
 const saveSchema = z.object({
-  departmentKey: z.string().min(1),
-  useCase: z.string().min(1),
+  departmentKey: shortId,
+  useCase: shortId,
   name: z.string().min(1).max(80),
-  answers: z.record(z.string(), z.any()),
+  answers: answersSchema,
 });
 
 export async function GET() {

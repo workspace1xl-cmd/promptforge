@@ -3,8 +3,12 @@ import { runGeneration } from "@/lib/server/runGeneration";
 import { generateRequestSchema, missingRequired } from "@/lib/validation";
 import type { Answers, ComplianceRuleDef, DepartmentConfig, GenerateOptions } from "@/lib/departments/types";
 import { applyFieldOverrides, enforceLockedAnswers } from "@/lib/departments/overrides";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = rateLimit(clientKey(request), 20, 60_000);
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSeconds!);
+
   let payload: unknown;
   try {
     payload = await request.json();
@@ -62,14 +66,17 @@ export async function POST(request: Request) {
     clarifications: body.clarifications,
   };
 
-  const result = await runGeneration({
-    departmentId: department.id,
-    config,
-    compliance,
-    answers,
-    options,
-    submissionId: body.submissionId,
-  });
-
-  return Response.json(result);
+  try {
+    const result = await runGeneration({
+      departmentId: department.id,
+      config,
+      compliance,
+      answers,
+      options,
+      submissionId: body.submissionId,
+    });
+    return Response.json(result);
+  } catch {
+    return Response.json({ error: "Generation failed. Please try again." }, { status: 500 });
+  }
 }

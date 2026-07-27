@@ -59,6 +59,7 @@ export async function createJiraIssue(
           description: toADF(description.slice(0, 30000)),
         },
       }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       return { ok: false, error: `Jira rejected the request (HTTP ${res.status}).` };

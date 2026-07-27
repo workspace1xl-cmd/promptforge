@@ -5,6 +5,7 @@ import { buildModel } from "@/lib/engine/assemble";
 import { ALT_TECHNIQUE } from "@/lib/engine/patterns";
 import type { Answers, ComplianceRuleDef, DepartmentConfig, GenerateOptions } from "@/lib/departments/types";
 import { applyFieldOverrides, enforceLockedAnswers } from "@/lib/departments/overrides";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 // Generates two genuinely different artifacts from one brief — variant B
 // deliberately uses a different technique (and the opposite rigour) from
@@ -12,6 +13,10 @@ import { applyFieldOverrides, enforceLockedAnswers } from "@/lib/departments/ove
 // to make, not a coin flip.
 
 export async function POST(request: Request) {
+  // Two full generations per call, so a tighter budget than /api/generate.
+  const limited = rateLimit(clientKey(request), 10, 60_000);
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSeconds!);
+
   let payload: unknown;
   try {
     payload = await request.json();
@@ -78,30 +83,34 @@ export async function POST(request: Request) {
 
   // Sequential, not parallel: both share one submission, and the version
   // number is a count-then-insert — running them concurrently would race.
-  const resultA = await runGeneration({
-    departmentId: department.id,
-    config,
-    compliance,
-    answers,
-    options: optionsA,
-    submissionId: body.submissionId,
-    variantLabel: "A",
-  });
-  const resultB = await runGeneration({
-    departmentId: department.id,
-    config,
-    compliance,
-    answers,
-    options: optionsB,
-    submissionId: resultA.submissionId,
-    variantLabel: "B",
-  });
+  try {
+    const resultA = await runGeneration({
+      departmentId: department.id,
+      config,
+      compliance,
+      answers,
+      options: optionsA,
+      submissionId: body.submissionId,
+      variantLabel: "A",
+    });
+    const resultB = await runGeneration({
+      departmentId: department.id,
+      config,
+      compliance,
+      answers,
+      options: optionsB,
+      submissionId: resultA.submissionId,
+      variantLabel: "B",
+    });
 
-  return Response.json({
-    submissionId: resultA.submissionId,
-    variants: [
-      { label: "A", ...resultA },
-      { label: "B", ...resultB },
-    ],
-  });
+    return Response.json({
+      submissionId: resultA.submissionId,
+      variants: [
+        { label: "A", ...resultA },
+        { label: "B", ...resultB },
+      ],
+    });
+  } catch {
+    return Response.json({ error: "Generation failed. Please try again." }, { status: 500 });
+  }
 }

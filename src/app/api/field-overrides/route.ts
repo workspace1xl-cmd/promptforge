@@ -50,11 +50,11 @@ export async function GET(request: Request) {
 }
 
 const upsertSchema = z.object({
-  departmentKey: z.string().min(1),
-  fieldId: z.string().min(1),
+  departmentKey: z.string().min(1).max(100),
+  fieldId: z.string().min(1).max(100),
   required: z.boolean().nullable(),
   locked: z.boolean(),
-  lockedValue: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+  lockedValue: z.union([z.string().max(2_000), z.number(), z.boolean(), z.null()]).optional(),
 });
 
 export async function POST(request: Request) {

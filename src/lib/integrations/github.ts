@@ -29,6 +29,7 @@ export async function createGitHubIssue(title: string, body: string): Promise<Ha
         "X-GitHub-Api-Version": "2022-11-28",
       },
       body: JSON.stringify({ title: title.slice(0, 250), body: body.slice(0, 60000) }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       // Never echo the upstream body back to the client — it can contain

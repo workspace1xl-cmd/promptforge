@@ -4,6 +4,7 @@ import { createGitHubIssue, isGitHubConfigured } from "@/lib/integrations/github
 import { createJiraIssue, isJiraConfigured } from "@/lib/integrations/jira";
 import { handoffBody, handoffTitle } from "@/lib/integrations/format";
 import type { HandoffResult } from "@/lib/integrations/types";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   generatedPromptId: z.string().min(1),
@@ -11,6 +12,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Real external issues/tickets are created here using the operator's own
+  // credentials — a tighter budget than the generation endpoints.
+  const limited = rateLimit(clientKey(request), 10, 60_000);
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSeconds!);
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid request." }, { status: 400 });
   const { generatedPromptId, target } = parsed.data;

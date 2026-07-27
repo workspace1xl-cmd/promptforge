@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { buildPdf } from "@/lib/export/pdf";
 import { buildDocx } from "@/lib/export/docx";
 import type { ExportBundle } from "@/lib/export/types";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 function slugify(s: string): string {
   return s
@@ -20,6 +21,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const limited = rateLimit(clientKey(request), 20, 60_000);
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSeconds!);
+
   const { id } = await params;
   const format = new URL(request.url).searchParams.get("format");
   if (format !== "pdf" && format !== "docx") {
@@ -48,21 +52,28 @@ export async function GET(
 
   const filename = `promptforge-${slugify(gp.department.name)}-${slugify(gp.useCase)}`;
 
-  if (format === "pdf") {
-    const bytes = await buildPdf(bundle);
-    return new Response(new Uint8Array(bytes), {
+  try {
+    if (format === "pdf") {
+      const bytes = await buildPdf(bundle);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
+        },
+      });
+    }
+
+    const buf = await buildDocx(bundle);
+    return new Response(new Uint8Array(buf), {
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}.pdf"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${filename}.docx"`,
       },
     });
+  } catch {
+    // Never let a document-generation failure surface a raw stack trace —
+    // return a clean, generic error instead of falling through to Next's
+    // default error page.
+    return Response.json({ error: "Could not generate the export. Please try again." }, { status: 500 });
   }
-
-  const buf = await buildDocx(bundle);
-  return new Response(new Uint8Array(buf), {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${filename}.docx"`,
-    },
-  });
 }

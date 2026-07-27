@@ -182,6 +182,7 @@ async function cerebrasCritique(
         temperature: 0.2,
         max_tokens: 4096,
       }),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
