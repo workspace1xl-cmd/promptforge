@@ -7,6 +7,7 @@
 
 import type { GenerateOptions } from "@/lib/departments/types";
 import type { MetaModel } from "./assemble";
+import { anthropicModel, callAnthropic } from "./anthropic";
 
 export interface QualityCriterion {
   key: string;
@@ -219,6 +220,53 @@ async function cerebrasCritique(
   }
 }
 
+async function anthropicCritique(
+  prompt: string,
+  criteria: QualityCriterion[],
+  apiKey: string,
+): Promise<{ criteria: QualityCriterion[]; repairedPrompt: string } | null> {
+  const checklist = criteria.map((c) => ({
+    key: c.key,
+    weight: c.weight,
+    label: c.label,
+    firstPass: c.passed,
+    note: c.note,
+  }));
+  try {
+    const raw = await callAnthropic({
+      apiKey,
+      maxTokens: 6000,
+      temperature: 0.1,
+      system: [
+        "You are the final quality gate for a production coding prompt.",
+        "Re-check the prompt for completeness, internal consistency, executable phases, requirement traceability, security, failure paths, testing, acceptance criteria, deployment and rollback. Repair genuine gaps without inventing client facts or weakening constraints.",
+        'Return only JSON: {"criteria":[{"key":"string","passed":true,"note":"string"}],"repairedPrompt":"string"}',
+      ].join("\n"),
+      user: `CHECKLIST:\n${JSON.stringify(checklist)}\n\nPROMPT:\n${prompt}`,
+    });
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as {
+      criteria?: Array<{ key?: string; passed?: boolean; note?: string }>;
+      repairedPrompt?: string;
+    };
+    if (!Array.isArray(parsed.criteria) || !parsed.repairedPrompt?.trim()) return null;
+    const byKey = new Map(parsed.criteria.map((item) => [item.key, item]));
+    return {
+      criteria: criteria.map((criterion) => {
+        const reviewed = byKey.get(criterion.key);
+        return reviewed && typeof reviewed.passed === "boolean"
+          ? { ...criterion, passed: reviewed.passed, note: reviewed.note?.trim() || criterion.note }
+          : criterion;
+      }),
+      repairedPrompt: parsed.repairedPrompt.trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Score the artifact and repair it. Never throws — always returns a usable report. */
 export async function critique(
   model: MetaModel,
@@ -226,6 +274,18 @@ export async function critique(
   options: GenerateOptions,
 ): Promise<QualityReport> {
   const baseCriteria = scoreCriteria(model, prompt, options);
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey?.trim()) {
+    const result = await anthropicCritique(prompt, baseCriteria, anthropicKey);
+    if (result) {
+      return {
+        score: computeScore(result.criteria),
+        criteria: result.criteria,
+        repairedPrompt: result.repairedPrompt,
+        repairedBy: `anthropic:${anthropicModel()}`,
+      };
+    }
+  }
   const apiKey = process.env.CEREBRAS_API_KEY;
 
   if (apiKey && apiKey.trim()) {

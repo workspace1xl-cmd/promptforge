@@ -140,6 +140,7 @@ export function Segmented({
           <button
             key={o.value}
             type="button"
+            aria-pressed={on}
             onClick={() => onChange(on ? undefined : o.value)}
             className={cn(
               "rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer",

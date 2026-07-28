@@ -1,6 +1,6 @@
 # PromptForge
 
-**A department-aware AI prompt & SOP generation platform.** A team picks a department,
+**A multi-agent AI prompt & SOP generation platform.** A team uploads or pastes a brief, picks a department,
 answers a short guided form, and PromptForge assembles a world-class, production-ready AI
 prompt — plus an optional SOP / briefing — grounded in real prompt-engineering
 methodology rather than guesswork.
@@ -8,6 +8,11 @@ methodology rather than guesswork.
 > Department + use case → dynamic form (with branching logic) → meta-prompt engine →
 > a ready-to-paste prompt, an SOP / briefing, or a coding-agent hand-off. Regenerate,
 > refine, save as a template.
+
+For software work, users can upload PDF, DOCX, TXT or Markdown SOPs/client briefs and
+choose a target coding tool such as Claude Code, Cursor, Codex, Antigravity or GitHub
+Copilot. Four independent Claude reviewers assess requirements, architecture/security,
+testing/reliability and delivery sequencing before a final synthesis and quality gate.
 
 The core bet: a guided, conditional form **is** the prompt-engineering process. It forces
 the task / context / format / constraints that the [Google Prompt Engineering whitepaper]
@@ -90,8 +95,9 @@ to freehand a blank chat box.
 - **Tailwind CSS v4** with a token-based, theme-aware design system
 - **Prisma 7** + **PostgreSQL** (via the `@prisma/adapter-pg` driver adapter)
 - **zod** for request validation
-- **AI engine:** Cerebras `gpt-oss-120b` via its OpenAI-compatible API, with a
-  deterministic built-in engine as a no-key fallback
+- **AI engine:** Anthropic Claude Messages API with a four-agent review council and final
+  quality gate; optional Cerebras secondary provider; deterministic no-key fallback
+- **Document ingestion:** server-side PDF, DOCX, TXT and Markdown extraction (10 MB limit)
 
 ### Deviations from the original spec (deliberate)
 
@@ -159,7 +165,9 @@ npm install
 # 2. Configure the environment
 cp .env.example .env
 #    → set DATABASE_URL to your Postgres connection string
-#    → (optional) set CEREBRAS_API_KEY to use gpt-oss-120b; blank uses the local engine
+#    → set ANTHROPIC_API_KEY to enable the review council and Claude synthesis
+#    → set PROMPTFORGE_ACCESS_CODE before publishing so only your team can spend API credits
+#    → (optional) set CEREBRAS_API_KEY as a secondary provider; blank uses the local engine
 #    → (optional) set GITHUB_TOKEN/GITHUB_REPO and/or JIRA_* to enable hand-off connectors;
 #      blank means the UI shows "not configured" and falls back to copy
 
@@ -179,17 +187,16 @@ Useful scripts: `npm run build`, `npm run db:reset` (force-reset + reseed).
 
 - **Database:** a free **Neon** or **Supabase** Postgres — put its connection string in
   `DATABASE_URL`.
-- **App:** deploy to **Vercel**. Set `DATABASE_URL` (and optionally `CEREBRAS_API_KEY`,
-  `CEREBRAS_BASE_URL`, `CEREBRAS_MODEL`) as environment variables. `prisma generate` runs on
+- **App:** deploy to **Vercel**. Set `DATABASE_URL`, `ANTHROPIC_API_KEY`, and optionally
+  `ANTHROPIC_MODEL` and `PROMPTFORGE_ACCESS_CODE` as environment variables. `prisma generate` runs on
   install; run `npm run db:push && npm run db:seed` once against the hosted database.
 
 ## The AI engine
 
-If `CEREBRAS_API_KEY` is set, the engine builds a system meta-prompt ("you are an expert
-prompt engineer…") plus a structured-input payload and sends them to `gpt-oss-120b` via the
-OpenAI-compatible chat-completions endpoint. With no key, the deterministic local engine
-assembles the same structured artifact. Either way the interface — and the saved output — is
-identical, so you can start without a key and switch on the model later.
+If `ANTHROPIC_API_KEY` is set, four independent review calls examine the structured brief.
+Claude then synthesizes their reports into a phase-wise implementation prompt and a final
+Claude quality gate repairs genuine gaps without inventing client facts. With no key, the
+deterministic local engine still creates a usable artifact. The API key remains server-side.
 
 ## Known limitations (read before a real deploy)
 
@@ -200,9 +207,8 @@ identical, so you can start without a key and switch on the model later.
   put real `GITHUB_TOKEN`/`JIRA_API_TOKEN` credentials on a publicly-reachable instance
   without adding auth first — an unauthenticated caller could otherwise spam issue/ticket
   creation using the operator's credentials.
-- **No rate limiting** anywhere, including the Cerebras calls and the two hand-off
-  connectors. Same recommendation as above: add rate limiting (e.g. a per-IP limiter backed
-  by Upstash Redis) before enabling real connector credentials in a public deployment.
+- Request and upload endpoints have lightweight per-instance rate limits. For a high-traffic
+  public deployment, replace these with a shared limiter such as Upstash Redis.
 - `npm audit` reports 7 pre-existing high/moderate findings (in `next`, `prisma`, `postcss`,
   `sharp`, `find-my-way`, `valibot`) — none from `pdf-lib`/`docx`. All are in code paths this
   app doesn't exercise (Next's Image Optimization / `sharp` — no `next/image` used anywhere;

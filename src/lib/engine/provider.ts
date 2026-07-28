@@ -1,7 +1,6 @@
-// Server-only AI layer. If CEREBRAS_API_KEY is set, the assembled meta-prompt is
-// crafted by Cerebras (gpt-oss-120b) via its OpenAI-compatible API. Otherwise the
-// deterministic local engine produces the artifact, so the app works end-to-end
-// with no key. Same interface either way.
+// Server-only AI layer. Claude is the primary provider and runs an independent
+// four-reviewer council before synthesising the final artifact. Cerebras remains
+// a compatible secondary provider; the deterministic engine is the final fallback.
 
 import type {
   Answers,
@@ -17,6 +16,8 @@ import {
   renderSOP,
   type MetaModel,
 } from "./assemble";
+import { anthropicModel, callAnthropic } from "./anthropic";
+import { localReviewCouncil, runReviewCouncil } from "./review-council";
 
 export interface EngineResult {
   prompt: string;
@@ -80,6 +81,54 @@ export async function generate(
     outputFormat: model.outputFormatLabel,
   };
 
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey?.trim()) {
+    try {
+      const system = [
+        buildSystemMetaPrompt(model, options),
+        "Before writing, use the independent council reports in the input as review evidence.",
+        "For software work, the artifact must be executable by the selected coding agent and include: requirement audit; assumptions versus unresolved questions; repository discovery; ordered phases with an objective, concrete tasks and verification for each phase; edge and failure cases; security/privacy/accessibility/performance checks where relevant; complete acceptance criteria; final end-to-end verification; deployment, observability and rollback guidance.",
+        "Do not claim that tests passed or files were inspected. Instruct the coding agent to inspect and verify them.",
+        "If essential information is missing, mark it as an explicit question or safe assumption instead of inventing it.",
+      ].join("\n");
+      const structured = buildStructuredInput(model);
+      const reviewCouncil = await runReviewCouncil(structured, anthropicKey);
+      const user = `${structured}\n\nINDEPENDENT REVIEW COUNCIL REPORTS:\n${JSON.stringify(reviewCouncil, null, 2)}`;
+      const text = await callAnthropic({
+        system,
+        user,
+        apiKey: anthropicKey,
+        maxTokens: options.verbosity === "detailed" ? 8000 : 6000,
+        temperature: 0.25,
+      });
+      if (text) {
+        return {
+          prompt: text,
+          sop,
+          technique: model.technique,
+          patternsUsed: [...model.patternsUsed, "multi-agent-review"],
+          provider: `anthropic:${anthropicModel()}`,
+          meta: { ...baseMeta, systemMetaPrompt: system, reviewCouncil },
+          model,
+        };
+      }
+    } catch (err) {
+      return {
+        prompt: renderPrompt(model, options),
+        sop,
+        technique: model.technique,
+        patternsUsed: model.patternsUsed,
+        provider: "local-engine (Claude provider error)",
+        meta: {
+          ...baseMeta,
+          providerError: (err as Error).message,
+          reviewCouncil: localReviewCouncil(),
+        },
+        model,
+      };
+    }
+  }
+
   const apiKey = process.env.CEREBRAS_API_KEY;
   if (apiKey && apiKey.trim()) {
     try {
@@ -118,7 +167,7 @@ export async function generate(
     technique: model.technique,
     patternsUsed: model.patternsUsed,
     provider: "local-engine",
-    meta: baseMeta,
+    meta: { ...baseMeta, reviewCouncil: localReviewCouncil() },
     model,
   };
 }

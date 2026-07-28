@@ -30,6 +30,15 @@ interface QualityReport {
   criteria: QualityCriterion[];
   repairedBy: string;
 }
+interface ReviewerReport {
+  id: string;
+  label: string;
+  summary: string;
+  status: "completed" | "fallback";
+  findings: Array<{ severity: string; finding: string; recommendation: string }>;
+  missingRequirements: string[];
+  acceptanceChecks: string[];
+}
 
 function scoreTone(score?: number): "ok" | "neutral" | "forge" {
   if (score === undefined) return "neutral";
@@ -122,10 +131,18 @@ export function ResultView({
       <aside className="flex h-fit flex-col gap-5 rounded-xl border border-line bg-surface p-5 lg:sticky lg:top-20">
         <div className="flex flex-col gap-2">
           <span className="eyebrow">Provider</span>
-          <Badge tone={result.provider.startsWith("cerebras") ? "ok" : "neutral"}>
+          <Badge tone={/^(anthropic|cerebras)/.test(result.provider) ? "ok" : "neutral"}>
             {result.provider}
           </Badge>
         </div>
+        {Array.isArray(result.meta?.reviewCouncil) && (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow">Review council</span>
+            <Badge tone="accent">
+              {(result.meta.reviewCouncil as ReviewerReport[]).filter((r) => r.status === "completed").length}/4 agents completed
+            </Badge>
+          </div>
+        )}
         {result.qualityScore !== undefined && (
           <div className="flex flex-col gap-2">
             <span className="eyebrow">Quality score</span>
@@ -295,6 +312,25 @@ function builtSummary(result: GenerateResult): string {
     s.push("");
   }
 
+  const council = result.meta?.reviewCouncil as ReviewerReport[] | undefined;
+  if (Array.isArray(council)) {
+    s.push("## Independent review council", "");
+    for (const reviewer of council) {
+      s.push(`### ${reviewer.label} — ${reviewer.status}`);
+      s.push(reviewer.summary || "No summary returned.");
+      for (const finding of reviewer.findings ?? []) {
+        s.push(`- [${finding.severity.toUpperCase()}] ${finding.finding} → ${finding.recommendation}`);
+      }
+      if (reviewer.missingRequirements?.length) {
+        s.push("Missing requirements:", ...reviewer.missingRequirements.map((item) => `- ${item}`));
+      }
+      if (reviewer.acceptanceChecks?.length) {
+        s.push("Acceptance checks:", ...reviewer.acceptanceChecks.map((item) => `- ${item}`));
+      }
+      s.push("");
+    }
+  }
+
   const sys = result.meta?.systemMetaPrompt as string | undefined;
   if (sys) {
     s.push("## System meta-prompt sent to the model", "", sys);
@@ -304,7 +340,7 @@ function builtSummary(result: GenerateResult): string {
       "",
       "This artifact was assembled deterministically by PromptForge's built-in engine using the Google whitepaper building blocks (role, task, context, format, technique) and the Vanderbilt prompt patterns above.",
       "",
-      "Add a CEREBRAS_API_KEY to have gpt-oss-120b craft the final artifact — and critique/repair it — from the same structured brief.",
+      "Add ANTHROPIC_API_KEY to run the four independent reviewers and have Claude synthesize and quality-gate the final artifact.",
     );
   }
   return s.join("\n");

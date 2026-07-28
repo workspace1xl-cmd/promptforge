@@ -290,6 +290,7 @@ export function buildSystemMetaPrompt(
     `Use the ${model.technique} technique.`,
     patterns ? `Apply these patterns: ${patterns}.` : "",
     "Treat every listed compliance rule as a hard constraint.",
+    "Preserve all facts from the uploaded SOP or client brief. Resolve conflicts explicitly and never silently drop a requirement.",
     "Design with simplicity — keep the result concise and free of filler.",
     options.rigor === "strict"
       ? "Do not invent missing details; if something required is absent, note it explicitly."
@@ -316,6 +317,11 @@ export function buildStructuredInput(model: MetaModel): string {
     outputFormatSpec: model.outputFormatInstruction,
     examples: model.examples,
     technique: model.technique,
+    generationStandard: {
+      requirementCoverage: "Map every supplied requirement to implementation work or an explicit open question.",
+      delivery: "Use phased, independently verifiable work when the task is non-trivial.",
+      quality: "Cover happy paths, edge cases, failure modes, tests, security and release readiness.",
+    },
   };
   return JSON.stringify(payload, null, 2);
 }

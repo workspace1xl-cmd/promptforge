@@ -8,7 +8,7 @@ export const softwareDevelopment: DepartmentSeed = {
     key: "software-development",
     name: "Software Development",
     description:
-      "Turn a feature idea into a production-ready build prompt, PRD or engineering brief.",
+      "Upload an SOP or paste a brief, then forge a reviewed, production-ready coding prompt.",
     icon: "DEV",
     persona:
       "a senior staff software engineer who writes clean, secure, production-ready code and clear technical documents",
@@ -25,7 +25,7 @@ export const softwareDevelopment: DepartmentSeed = {
         label: "Codex-style build prompt",
         technique: "react",
         instruction:
-          "Produce a Codex-style build prompt an autonomous coding agent can execute: a clear objective, an ordered task breakdown, the tech stack, acceptance criteria, and a working agreement (plan first, work in small verifiable steps).",
+          "Produce an execution-ready coding-agent prompt: requirement audit, explicit assumptions and open questions, repository discovery, a phased implementation plan, per-phase verification, security and failure-path checks, end-to-end acceptance criteria, release/rollback notes, and a working agreement that requires small verifiable changes. Adapt the prompt to the selected coding agent.",
       },
       {
         value: "prd",
@@ -62,6 +62,7 @@ export const softwareDevelopment: DepartmentSeed = {
             type: "segment",
             slot: "context",
             required: true,
+            default: "feature",
             help: "Pick the closest match; it tunes the technique and structure.",
             options: [
               { value: "feature", label: "Feature / product build" },
@@ -79,7 +80,36 @@ export const softwareDevelopment: DepartmentSeed = {
             placeholder:
               "e.g. Users can't reset their password without contacting support…",
             help: "Describe what's broken or missing, and for whom. This becomes the core objective.",
-            max: 800,
+            max: 2000,
+          },
+          {
+            id: "targetCodingAgent",
+            label: "Where will you run the prompt?",
+            type: "segment",
+            slot: "format",
+            required: true,
+            default: "Claude Code",
+            help: "The final prompt adapts its working agreement and structure to this coding agent.",
+            options: [
+              { value: "Claude Code", label: "Claude Code" },
+              { value: "Cursor", label: "Cursor" },
+              { value: "Codex", label: "Codex" },
+              { value: "Antigravity", label: "Antigravity" },
+              { value: "GitHub Copilot", label: "Copilot" },
+              { value: "Generic coding agent", label: "Other" },
+            ],
+          },
+          {
+            id: "sourceBrief",
+            label: "SOP / client brief",
+            type: "textarea",
+            slot: "context",
+            required: true,
+            placeholder:
+              "Upload a PDF/Word file above, or paste the full SOP, ticket, issue, PRD or client brief here…",
+            help:
+              "PromptForge extracts the requirements and sends only the resulting text to the review council.",
+            max: 40000,
           },
           {
             id: "targetUsers",
@@ -240,7 +270,7 @@ export const softwareDevelopment: DepartmentSeed = {
             placeholder:
               "Paste house rules: naming, testing policy, review gates, dependencies to avoid…",
             help: "Pasted rules become hard constraints in the generated prompt.",
-            max: 1500,
+            max: 10000,
             clarifyPrompt:
               "Any house coding standards to assume, or should PromptForge use general best practice?",
           },

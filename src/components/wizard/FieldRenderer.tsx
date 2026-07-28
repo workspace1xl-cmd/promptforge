@@ -3,6 +3,7 @@
 import type { AnswerValue, FieldDef } from "@/lib/departments/types";
 import { Input, InfoTip, Label, Segmented, Textarea, Toggle } from "@/components/ui";
 import { Chips, MultiSelect } from "@/components/inputs";
+import { DocumentUpload } from "./DocumentUpload";
 
 export function FieldRenderer({
   field,
@@ -50,14 +51,22 @@ export function FieldRenderer({
       )}
 
       {field.type === "textarea" && (
-        <Textarea
-          id={`f-${field.id}`}
-          value={(value as string) ?? ""}
-          placeholder={field.placeholder}
-          maxLength={field.max ?? 2000}
-          onChange={(e) => onChange(e.target.value)}
-          className={invalid ? "border-danger" : ""}
-        />
+        <>
+          {field.id === "sourceBrief" && <DocumentUpload onExtract={onChange} />}
+          <Textarea
+            id={`f-${field.id}`}
+            value={(value as string) ?? ""}
+            placeholder={field.placeholder}
+            maxLength={field.max ?? 2000}
+            onChange={(e) => onChange(e.target.value)}
+            className={invalid ? "border-danger" : ""}
+          />
+          {field.id === "sourceBrief" && (
+            <span className="text-right text-[11px] text-ink3">
+              {String(value ?? "").length.toLocaleString()} / {(field.max ?? 2000).toLocaleString()} characters
+            </span>
+          )}
+        </>
       )}
 
       {field.type === "select" && (

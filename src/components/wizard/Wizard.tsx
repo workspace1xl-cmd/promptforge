@@ -411,8 +411,7 @@ export function Wizard({
                       <Toggle checked={wantVariants} onChange={setWantVariants} />
                     </div>
                     <p className="text-[12px] text-ink3">
-                      Forges two genuinely different takes — a different technique and
-                      rigour each — so you can pick the better one.
+                      Each variant gets its own four-agent review, so this uses more Claude API calls.
                     </p>
                   </div>
                 </div>
@@ -434,7 +433,11 @@ export function Wizard({
                   onClick={handleForge}
                   disabled={generating || checkingClarify}
                 >
-                  {checkingClarify ? "Checking brief…" : generating ? "Forging…" : "Forge output →"}
+                  {checkingClarify
+                    ? "Checking brief…"
+                    : generating
+                      ? "4 agents reviewing…"
+                      : "Review with 4 agents & forge →"}
                 </Button>
               )}
             </div>

@@ -8,7 +8,7 @@ import { allFields, hasValue, isFieldVisible } from "@/lib/engine/assemble";
 // oversized payload sent straight to the API (bypassing the wizard) from
 // bloating storage, the AI provider call, or an unbounded PDF/DOCX export.
 const answerValueSchema = z.union([
-  z.string().max(10_000),
+  z.string().max(50_000),
   z.array(z.string().max(2_000)).max(200),
   z.boolean(),
   z.number(),

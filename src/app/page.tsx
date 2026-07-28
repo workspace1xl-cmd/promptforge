@@ -14,16 +14,16 @@ export default async function Home() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-14">
       <section className="max-w-2xl">
-        <div className="eyebrow">Department-aware prompt engineering</div>
+        <div className="eyebrow">Four-agent requirement review · Claude-powered</div>
         <h1 className="mt-3 text-balance text-4xl font-bold tracking-tight text-ink sm:text-[2.7rem]">
-          Turn a short brief into a{" "}
-          <span className="text-forge">production-ready</span> prompt.
+          Turn any SOP into a{" "}
+          <span className="text-forge">ship-ready coding prompt.</span>
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-ink2">
-          Pick a department, answer a guided form, and PromptForge assembles a world-class
-          AI prompt — grounded in Google&rsquo;s prompt-engineering building blocks and
-          Vanderbilt&rsquo;s prompt patterns — plus an optional SOP briefing. No blank chat
-          box, no guesswork.
+          Upload a PDF or Word brief, or paste the text. Four independent reviewers check
+          requirements, architecture and security, test coverage, and delivery risks before
+          Claude creates a phased prompt for Claude Code, Cursor, Codex, Antigravity, or
+          another coding agent.
         </p>
       </section>
 

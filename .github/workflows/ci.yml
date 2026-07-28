@@ -1,0 +1,93 @@
+name: Quality and deployment
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: promptforge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: promptforge
+          POSTGRES_PASSWORD: promptforge
+          POSTGRES_DB: promptforge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U promptforge -d promptforge_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://promptforge:promptforge@127.0.0.1:5432/promptforge_test?schema=public
+      ANTHROPIC_API_KEY: ""
+      CEREBRAS_API_KEY: ""
+      PROMPTFORGE_ACCESS_CODE: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - run: npm run db:seed
+      - run: npm run lint
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload browser test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Check whether deployment is configured
+        id: deployment-config
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ] && [ -n "$DATABASE_URL" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Deployment skipped until the four repository secrets are configured."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.deployment-config.outputs.enabled == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.deployment-config.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npm ci
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npm run db:push
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npm run db:seed
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npx vercel build --prod --token="$VERCEL_TOKEN"
+      - if: steps.deployment-config.outputs.enabled == 'true'
+        run: npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
