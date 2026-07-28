@@ -306,7 +306,7 @@ function builtSummary(result: GenerateResult): string {
       quality.repairedBy === "none"
         ? "No repair was needed — every required check passed on the first pass."
         : quality.repairedBy === "local"
-          ? "Repaired locally: a mechanical quality note was appended for the checks that came up weak (no API key configured, so nothing was rewritten or invented)."
+          ? "Repaired locally: the AI quality rewrite was unavailable, so a deterministic, non-inventive quality note was appended."
           : `Repaired by ${quality.repairedBy}: the model re-verified the checklist against the actual prompt text and rewrote the weak sections without inventing new facts.`,
     );
     s.push("");

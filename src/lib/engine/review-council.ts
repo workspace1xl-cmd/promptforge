@@ -63,12 +63,13 @@ async function runReviewer(
     `You are the ${reviewer.label} on an independent pre-build review council.`,
     reviewer.focus,
     "Analyze only the supplied brief. Do not invent client facts. Separate a missing requirement from a recommended implementation choice.",
+    "Be concise: at most 6 findings, 6 missing requirements and 8 acceptance checks.",
     "Return only JSON with this shape:",
     '{"summary":"string","findings":[{"severity":"critical|high|medium|low","finding":"string","recommendation":"string"}],"missingRequirements":["string"],"acceptanceChecks":["string"]}',
   ].join("\n");
 
   try {
-    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 1500, temperature: 0.1 });
+    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 1200, temperature: 0.1 });
     const parsed = extractJson(raw) as Record<string, unknown>;
     const findings = Array.isArray(parsed.findings)
       ? parsed.findings
@@ -104,7 +105,14 @@ async function runReviewer(
 }
 
 export async function runReviewCouncil(brief: string, apiKey: string): Promise<ReviewerReport[]> {
-  return Promise.all(REVIEWERS.map((reviewer) => runReviewer(reviewer, brief, apiKey)));
+  // Run independently but sequentially. Entry-level Claude API tiers commonly
+  // reject four simultaneous requests; sequential execution preserves four
+  // distinct reviews while avoiding a council-wide 429 fallback.
+  const reports: ReviewerReport[] = [];
+  for (const reviewer of REVIEWERS) {
+    reports.push(await runReviewer(reviewer, brief, apiKey));
+  }
+  return reports;
 }
 
 export function localReviewCouncil(): ReviewerReport[] {

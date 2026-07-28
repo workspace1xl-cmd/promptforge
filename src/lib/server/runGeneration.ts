@@ -48,11 +48,9 @@ export async function runGeneration(input: RunGenerationInput) {
   const meta = json({ ...engine.meta, quality });
 
   // count-then-insert races if two requests hit the same submission at once;
-  // the @@unique([submissionId, version]) constraint (see schema.prisma —
-  // NOT YET APPLIED to the database pending operator consent) catches that
-  // instead of silently producing duplicate version numbers, and we just
-  // recount+retry. Until that migration is applied, this loop always
-  // succeeds on the first attempt (harmless no-op, not a regression).
+  // the migrated @@unique([submissionId, version]) constraint catches that
+  // instead of silently producing duplicate version numbers, and we recount
+  // and retry.
   let gp: Awaited<ReturnType<typeof prisma.generatedPrompt.create>> | undefined;
   let version = 0;
   for (let attempt = 0; attempt < MAX_VERSION_RETRIES; attempt++) {

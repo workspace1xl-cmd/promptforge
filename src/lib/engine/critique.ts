@@ -1,9 +1,7 @@
 // The quality layer. Scores every generated artifact against the Google
 // whitepaper checklist (clear task, context, format, constraints, technique,
-// simplicity — examples as a bonus), then repairs weak spots: mechanically
-// via a fixed hint when no AI key is configured, or via a second Cerebras
-// call that re-verifies the checklist against the real prompt text and
-// rewrites it without inventing facts.
+// simplicity — examples as a bonus), then repairs weak spots with Claude,
+// Cerebras, or a deterministic non-inventive fallback.
 
 import type { GenerateOptions } from "@/lib/departments/types";
 import type { MetaModel } from "./assemble";
@@ -106,7 +104,7 @@ function scoreCriteria(
   });
 
   const limit =
-    options.verbosity === "concise" ? 1600 : options.verbosity === "balanced" ? 2600 : Infinity;
+    options.verbosity === "concise" ? 8_000 : options.verbosity === "balanced" ? 18_000 : 30_000;
   const simplicityOk = prompt.length <= limit;
   criteria.push({
     key: "simplicity",
@@ -235,7 +233,7 @@ async function anthropicCritique(
   try {
     const raw = await callAnthropic({
       apiKey,
-      maxTokens: 6000,
+      maxTokens: 8000,
       temperature: 0.1,
       system: [
         "You are the final quality gate for a production coding prompt.",
