@@ -40,10 +40,30 @@ const REVIEWERS = [
 ] as const;
 
 function extractJson(raw: string): unknown {
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("Reviewer returned no JSON object.");
-  return JSON.parse(raw.slice(start, end + 1));
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const candidates: string[] = [];
+    const objectStart = cleaned.indexOf("{");
+    const objectEnd = cleaned.lastIndexOf("}");
+    if (objectStart >= 0 && objectEnd > objectStart) {
+      candidates.push(cleaned.slice(objectStart, objectEnd + 1));
+    }
+    const arrayStart = cleaned.indexOf("[");
+    const arrayEnd = cleaned.lastIndexOf("]");
+    if (arrayStart >= 0 && arrayEnd > arrayStart) {
+      candidates.push(cleaned.slice(arrayStart, arrayEnd + 1));
+    }
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // Try the next supported envelope.
+      }
+    }
+  }
+  throw new Error("Reviewer returned no complete JSON value.");
 }
 
 function cleanStrings(value: unknown, limit: number): string[] {
@@ -74,7 +94,7 @@ function normalizeReport(
   const findings = Array.isArray(parsed.findings)
     ? parsed.findings
           .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-          .slice(0, 6)
+          .slice(0, 4)
           .map((item) => ({
             severity: (["critical", "high", "medium", "low"].includes(String(item.severity)) ? String(item.severity) : "medium") as ReviewFinding["severity"],
             finding: String(item.finding ?? "").trim().slice(0, 800),
@@ -87,8 +107,8 @@ function normalizeReport(
     label: reviewer.label,
     summary: String(parsed.summary ?? "Review completed.").trim().slice(0, 1200),
     findings,
-    missingRequirements: cleanStrings(parsed.missingRequirements, 6),
-    acceptanceChecks: cleanStrings(parsed.acceptanceChecks, 8),
+    missingRequirements: cleanStrings(parsed.missingRequirements, 4),
+    acceptanceChecks: cleanStrings(parsed.acceptanceChecks, 5),
     status: "completed",
   };
 }
@@ -104,15 +124,20 @@ export async function runReviewCouncil(brief: string, apiKey: string): Promise<R
     "You are a four-role pre-build review council. Evaluate the brief independently from each role's perspective; do not let one role replace or dilute another.",
     reviewerInstructions,
     "Analyze only the supplied brief. Do not invent client facts. Separate missing requirements from recommended implementation choices.",
-    "Each report may contain at most 6 findings, 6 missing requirements and 8 acceptance checks.",
+    "Keep the council compact. Each report may contain at most 4 findings, 4 missing requirements and 5 acceptance checks.",
     "Return only JSON with exactly one report for each id in the listed order:",
     '{"reports":[{"id":"requirements|architecture|quality|delivery","summary":"string","findings":[{"severity":"critical|high|medium|low","finding":"string","recommendation":"string"}],"missingRequirements":["string"],"acceptanceChecks":["string"]}]}',
   ].join("\n");
   try {
-    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 3600, temperature: 0.1 });
-    const parsed = extractJson(raw) as { reports?: Array<Record<string, unknown>> };
-    const byId = new Map((parsed.reports ?? []).map((report) => [String(report.id), report]));
-    return REVIEWERS.map((reviewer) => normalizeReport(reviewer, byId.get(reviewer.id)));
+    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 2800, temperature: 0.1 });
+    const parsed = extractJson(raw) as
+      | Array<Record<string, unknown>>
+      | { reports?: Array<Record<string, unknown>> };
+    const reports = Array.isArray(parsed) ? parsed : (parsed.reports ?? []);
+    const byId = new Map(reports.map((report) => [String(report.id), report]));
+    return REVIEWERS.map((reviewer, index) =>
+      normalizeReport(reviewer, byId.get(reviewer.id) ?? reports[index]),
+    );
   } catch {
     return REVIEWERS.map(fallbackReport);
   }
