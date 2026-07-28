@@ -1,4 +1,4 @@
-import { callAnthropic } from "./anthropic";
+import { callAnthropicTool } from "./anthropic";
 
 export interface ReviewFinding {
   severity: "critical" | "high" | "medium" | "low";
@@ -38,33 +38,6 @@ const REVIEWERS = [
     focus: "Turn the work into small verifiable phases, identify repository discovery steps, safe sequencing, release gates, documentation and an efficient coding-agent working agreement.",
   },
 ] as const;
-
-function extractJson(raw: string): unknown {
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const candidates: string[] = [];
-    const objectStart = cleaned.indexOf("{");
-    const objectEnd = cleaned.lastIndexOf("}");
-    if (objectStart >= 0 && objectEnd > objectStart) {
-      candidates.push(cleaned.slice(objectStart, objectEnd + 1));
-    }
-    const arrayStart = cleaned.indexOf("[");
-    const arrayEnd = cleaned.lastIndexOf("]");
-    if (arrayStart >= 0 && arrayEnd > arrayStart) {
-      candidates.push(cleaned.slice(arrayStart, arrayEnd + 1));
-    }
-    for (const candidate of candidates) {
-      try {
-        return JSON.parse(candidate);
-      } catch {
-        // Try the next supported envelope.
-      }
-    }
-  }
-  throw new Error("Reviewer returned no complete JSON value.");
-}
 
 function cleanStrings(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
@@ -125,15 +98,55 @@ export async function runReviewCouncil(brief: string, apiKey: string): Promise<R
     reviewerInstructions,
     "Analyze only the supplied brief. Do not invent client facts. Separate missing requirements from recommended implementation choices.",
     "Keep the council compact. Each report may contain at most 4 findings, 4 missing requirements and 5 acceptance checks.",
-    "Return only JSON with exactly one report for each id in the listed order:",
-    '{"reports":[{"id":"requirements|architecture|quality|delivery","summary":"string","findings":[{"severity":"critical|high|medium|low","finding":"string","recommendation":"string"}],"missingRequirements":["string"],"acceptanceChecks":["string"]}]}',
+    "Submit exactly one report for each id in the listed order through the review_brief tool.",
   ].join("\n");
   try {
-    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 2800, temperature: 0.1 });
-    const parsed = extractJson(raw) as
-      | Array<Record<string, unknown>>
-      | { reports?: Array<Record<string, unknown>> };
-    const reports = Array.isArray(parsed) ? parsed : (parsed.reports ?? []);
+    const parsed = await callAnthropicTool<{ reports?: Array<Record<string, unknown>> }>({
+      system,
+      user: brief,
+      apiKey,
+      toolName: "review_brief",
+      description: "Submit the four independent, structured pre-build review reports.",
+      maxTokens: 3200,
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reports"],
+        properties: {
+          reports: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id", "summary", "findings", "missingRequirements", "acceptanceChecks"],
+              properties: {
+                id: { type: "string", enum: REVIEWERS.map((reviewer) => reviewer.id) },
+                summary: { type: "string" },
+                findings: {
+                  type: "array",
+                  maxItems: 4,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["severity", "finding", "recommendation"],
+                    properties: {
+                      severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
+                      finding: { type: "string" },
+                      recommendation: { type: "string" },
+                    },
+                  },
+                },
+                missingRequirements: { type: "array", maxItems: 4, items: { type: "string" } },
+                acceptanceChecks: { type: "array", maxItems: 5, items: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const reports = parsed.reports ?? [];
     const byId = new Map(reports.map((report) => [String(report.id), report]));
     return REVIEWERS.map((reviewer, index) =>
       normalizeReport(reviewer, byId.get(reviewer.id) ?? reports[index]),
