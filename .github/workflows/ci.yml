@@ -33,8 +33,8 @@ jobs:
       CEREBRAS_API_KEY: ""
       PROMPTFORGE_ACCESS_CODE: ""
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -47,7 +47,7 @@ jobs:
       - run: npm run test:e2e
       - name: Upload browser test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: playwright-report/
@@ -72,9 +72,9 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "Deployment skipped until the four repository secrets are configured."
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.deployment-config.outputs.enabled == 'true'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.deployment-config.outputs.enabled == 'true'
         with:
           node-version: 22
