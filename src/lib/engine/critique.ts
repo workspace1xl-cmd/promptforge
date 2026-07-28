@@ -238,7 +238,8 @@ async function anthropicCritique(
       system: [
         "You are the final quality gate for a production coding prompt.",
         "Re-check the prompt for completeness, internal consistency, executable phases, requirement traceability, security, failure paths, testing, acceptance criteria, deployment and rollback. Repair genuine gaps without inventing client facts or weakening constraints.",
-        'Return only JSON: {"criteria":[{"key":"string","passed":true,"note":"string"}],"repairedPrompt":"string"}',
+        "If no genuine required gap remains, return repairedPrompt as null instead of repeating the prompt.",
+        'Return only JSON: {"criteria":[{"key":"string","passed":true,"note":"string"}],"repairedPrompt":"string|null"}',
       ].join("\n"),
       user: `CHECKLIST:\n${JSON.stringify(checklist)}\n\nPROMPT:\n${prompt}`,
     });
@@ -247,9 +248,9 @@ async function anthropicCritique(
     if (start < 0 || end <= start) return null;
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
       criteria?: Array<{ key?: string; passed?: boolean; note?: string }>;
-      repairedPrompt?: string;
+      repairedPrompt?: string | null;
     };
-    if (!Array.isArray(parsed.criteria) || !parsed.repairedPrompt?.trim()) return null;
+    if (!Array.isArray(parsed.criteria)) return null;
     const byKey = new Map(parsed.criteria.map((item) => [item.key, item]));
     return {
       criteria: criteria.map((criterion) => {
@@ -258,7 +259,10 @@ async function anthropicCritique(
           ? { ...criterion, passed: reviewed.passed, note: reviewed.note?.trim() || criterion.note }
           : criterion;
       }),
-      repairedPrompt: parsed.repairedPrompt.trim(),
+      repairedPrompt:
+        typeof parsed.repairedPrompt === "string" && parsed.repairedPrompt.trim()
+          ? parsed.repairedPrompt.trim()
+          : prompt,
     };
   } catch {
     return null;

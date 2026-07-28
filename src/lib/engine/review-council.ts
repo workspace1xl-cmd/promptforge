@@ -54,65 +54,68 @@ function cleanStrings(value: unknown, limit: number): string[] {
     .map((item) => item.trim().slice(0, 800));
 }
 
-async function runReviewer(
-  reviewer: (typeof REVIEWERS)[number],
-  brief: string,
-  apiKey: string,
-): Promise<ReviewerReport> {
-  const system = [
-    `You are the ${reviewer.label} on an independent pre-build review council.`,
-    reviewer.focus,
-    "Analyze only the supplied brief. Do not invent client facts. Separate a missing requirement from a recommended implementation choice.",
-    "Be concise: at most 6 findings, 6 missing requirements and 8 acceptance checks.",
-    "Return only JSON with this shape:",
-    '{"summary":"string","findings":[{"severity":"critical|high|medium|low","finding":"string","recommendation":"string"}],"missingRequirements":["string"],"acceptanceChecks":["string"]}',
-  ].join("\n");
+function fallbackReport(reviewer: (typeof REVIEWERS)[number]): ReviewerReport {
+  return {
+    id: reviewer.id,
+    label: reviewer.label,
+    summary: "Automated reviewer was unavailable; the final synthesizer must cover this review area directly.",
+    findings: [],
+    missingRequirements: [],
+    acceptanceChecks: [],
+    status: "fallback",
+  };
+}
 
-  try {
-    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 1200, temperature: 0.1 });
-    const parsed = extractJson(raw) as Record<string, unknown>;
-    const findings = Array.isArray(parsed.findings)
-      ? parsed.findings
+function normalizeReport(
+  reviewer: (typeof REVIEWERS)[number],
+  parsed: Record<string, unknown> | undefined,
+): ReviewerReport {
+  if (!parsed) return fallbackReport(reviewer);
+  const findings = Array.isArray(parsed.findings)
+    ? parsed.findings
           .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-          .slice(0, 10)
+          .slice(0, 6)
           .map((item) => ({
             severity: (["critical", "high", "medium", "low"].includes(String(item.severity)) ? String(item.severity) : "medium") as ReviewFinding["severity"],
             finding: String(item.finding ?? "").trim().slice(0, 800),
             recommendation: String(item.recommendation ?? "").trim().slice(0, 800),
           }))
           .filter((item) => item.finding)
-      : [];
-    return {
-      id: reviewer.id,
-      label: reviewer.label,
-      summary: String(parsed.summary ?? "Review completed.").trim().slice(0, 1200),
-      findings,
-      missingRequirements: cleanStrings(parsed.missingRequirements, 10),
-      acceptanceChecks: cleanStrings(parsed.acceptanceChecks, 12),
-      status: "completed",
-    };
-  } catch {
-    return {
-      id: reviewer.id,
-      label: reviewer.label,
-      summary: "Automated reviewer was unavailable; the final synthesizer must cover this review area directly.",
-      findings: [],
-      missingRequirements: [],
-      acceptanceChecks: [],
-      status: "fallback",
-    };
-  }
+    : [];
+  return {
+    id: reviewer.id,
+    label: reviewer.label,
+    summary: String(parsed.summary ?? "Review completed.").trim().slice(0, 1200),
+    findings,
+    missingRequirements: cleanStrings(parsed.missingRequirements, 6),
+    acceptanceChecks: cleanStrings(parsed.acceptanceChecks, 8),
+    status: "completed",
+  };
 }
 
 export async function runReviewCouncil(brief: string, apiKey: string): Promise<ReviewerReport[]> {
-  // Run independently but sequentially. Entry-level Claude API tiers commonly
-  // reject four simultaneous requests; sequential execution preserves four
-  // distinct reviews while avoiding a council-wide 429 fallback.
-  const reports: ReviewerReport[] = [];
-  for (const reviewer of REVIEWERS) {
-    reports.push(await runReviewer(reviewer, brief, apiKey));
+  // One batched inference keeps entry-level API tiers fast and reliable while
+  // preserving four isolated perspectives and four separately structured
+  // reports for synthesis and UI transparency.
+  const reviewerInstructions = REVIEWERS.map(
+    (reviewer) => `${reviewer.id} (${reviewer.label}): ${reviewer.focus}`,
+  ).join("\n");
+  const system = [
+    "You are a four-role pre-build review council. Evaluate the brief independently from each role's perspective; do not let one role replace or dilute another.",
+    reviewerInstructions,
+    "Analyze only the supplied brief. Do not invent client facts. Separate missing requirements from recommended implementation choices.",
+    "Each report may contain at most 6 findings, 6 missing requirements and 8 acceptance checks.",
+    "Return only JSON with exactly one report for each id in the listed order:",
+    '{"reports":[{"id":"requirements|architecture|quality|delivery","summary":"string","findings":[{"severity":"critical|high|medium|low","finding":"string","recommendation":"string"}],"missingRequirements":["string"],"acceptanceChecks":["string"]}]}',
+  ].join("\n");
+  try {
+    const raw = await callAnthropic({ system, user: brief, apiKey, maxTokens: 3600, temperature: 0.1 });
+    const parsed = extractJson(raw) as { reports?: Array<Record<string, unknown>> };
+    const byId = new Map((parsed.reports ?? []).map((report) => [String(report.id), report]));
+    return REVIEWERS.map((reviewer) => normalizeReport(reviewer, byId.get(reviewer.id)));
+  } catch {
+    return REVIEWERS.map(fallbackReport);
   }
-  return reports;
 }
 
 export function localReviewCouncil(): ReviewerReport[] {
