@@ -39,7 +39,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run db:push
+      - run: npm run db:deploy
       - run: npm run db:seed
       - run: npm run lint
       - run: npm run build
@@ -54,7 +54,9 @@ jobs:
           retention-days: 14
 
   deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
     needs: quality
     runs-on: ubuntu-latest
     env:
@@ -82,7 +84,7 @@ jobs:
       - if: steps.deployment-config.outputs.enabled == 'true'
         run: npm ci
       - if: steps.deployment-config.outputs.enabled == 'true'
-        run: npm run db:push
+        run: npm run db:deploy
       - if: steps.deployment-config.outputs.enabled == 'true'
         run: npm run db:seed
       - if: steps.deployment-config.outputs.enabled == 'true'
